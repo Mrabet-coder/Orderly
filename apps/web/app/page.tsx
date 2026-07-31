@@ -17,8 +17,8 @@ import { OrderStatus } from "@/types/order";
 
 const STATUS_ORDER: OrderStatus[] = [
   "NOUVEAU", "CONFIRMATION_EN_COURS", "CONFIRME", "EN_PREPARATION",
-  "EXPEDIE", "EN_COURS_DE_LIVRAISON", "LIVRE", "PAYE", "RETOUR",
-  "RETOUR_DEPOT", "RETOUR_RECU", "ANNULE",
+  "A_EXPEDIER", "AU_DEPOT_LIVREUR", "EN_COURS_DE_LIVRAISON", "LIVRE", "PAYE", "RETOUR",
+  "RETOUR_DEPOT", "RETOUR_RECU", "ANNULE", "A_VERIFIER",
 ];
 
 function StatCard({ label, value, sub, icon: Icon, color }: {
@@ -48,7 +48,7 @@ function StatusBar({ status, count, total }: { status: OrderStatus; count: numbe
     CONFIRMATION_EN_COURS: "bg-status-processing",
     CONFIRME: "bg-status-new",
     EN_PREPARATION: "bg-status-processing",
-    EXPEDIE: "bg-status-shipped",
+    A_EXPEDIER: "bg-status-shipped",
     EN_COURS_DE_LIVRAISON: "bg-status-shipped",
     LIVRE: "bg-status-delivered",
     PAYE: "bg-status-delivered",

@@ -37,10 +37,14 @@ const STATUS_ICONS: Record<IntegrationStatus, React.ElementType> = {
   ERROR: AlertCircle,
 };
 
-const TYPE_ICONS: Record<IntegrationType, React.ElementType> = {
+const TYPE_ICONS: Partial<Record<IntegrationType, React.ElementType>> = {
   SHOPIFY: ShoppingBag,
   GENERIC_API: Globe,
   GOOGLE_SHEETS: Sheet,
+  CUSTOM: Globe,
+  MARKETPLACE: Globe,
+  DELIVERY: Truck,
+};
 };
 
 const TYPE_LABELS: Record<IntegrationType, string> = {

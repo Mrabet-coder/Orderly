@@ -45,12 +45,15 @@ const TYPE_ICONS: Partial<Record<IntegrationType, React.ElementType>> = {
   MARKETPLACE: Globe,
   DELIVERY: Truck,
 };
-};
 
-const TYPE_LABELS: Record<IntegrationType, string> = {
+
+const TYPE_LABELS: Partial<Record<IntegrationType, string>> = {
   SHOPIFY: "Shopify",
   GENERIC_API: "Custom API",
   GOOGLE_SHEETS: "Google Sheets",
+  CUSTOM: "Custom",
+  MARKETPLACE: "Marketplace",
+  DELIVERY: "Livraison",
 };
 
 function timeSince(iso: string | null) {

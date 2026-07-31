@@ -15,13 +15,9 @@ import {
   XCircle,
   AlertCircle,
   RefreshCw,
-  Plug,
   ShoppingBag,
   Globe,
-  Sheet,
   Truck,
-  ChevronDown,
-  ChevronUp,
   X,
 } from "lucide-react";
 
@@ -40,12 +36,11 @@ const STATUS_ICONS: Record<IntegrationStatus, React.ElementType> = {
 const TYPE_ICONS: Partial<Record<IntegrationType, React.ElementType>> = {
   SHOPIFY: ShoppingBag,
   GENERIC_API: Globe,
-  GOOGLE_SHEETS: Sheet,
+  GOOGLE_SHEETS: Globe,
   CUSTOM: Globe,
   MARKETPLACE: Globe,
   DELIVERY: Truck,
 };
-
 
 const TYPE_LABELS: Partial<Record<IntegrationType, string>> = {
   SHOPIFY: "Shopify",
@@ -69,7 +64,6 @@ function timeSince(iso: string | null) {
 
 function ConnectModal({
   type,
-  storeId,
   onClose,
   onConnect,
 }: {
@@ -96,16 +90,15 @@ function ConnectModal({
           { key: "tab", label: "Sheet tab name", placeholder: "Orders" },
         ];
 
+  const Icon = TYPE_ICONS[type] ?? Globe;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
       <div className="w-full max-w-md rounded-xl border border-border bg-surface shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="flex items-center gap-2">
-            {(() => {
-              const Icon = TYPE_ICONS[type];
-              return <Icon className="h-4 w-4 text-muted" />;
-            })()}
-            <h2 className="text-sm font-semibold">Connect {TYPE_LABELS[type]}</h2>
+            <Icon className="h-4 w-4 text-muted" />
+            <h2 className="text-sm font-semibold">Connect {TYPE_LABELS[type] ?? type}</h2>
           </div>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-surface-sunken">
             <X className="h-4 w-4" />
@@ -145,67 +138,13 @@ function ConnectModal({
   );
 }
 
-function IntegrationCard({
-  integration,
-  onToggle,
-  onSync,
-}: {
-  integration: StoreIntegration;
+interface StoreSectionProps {
+  storeId: string;
+  storeName: string;
+  integrations: StoreIntegration[];
   onToggle: (id: string) => void;
   onSync: (id: string) => void;
-}) {
-  const StatusIcon = STATUS_ICONS[integration.status];
-  const TypeIcon = TYPE_ICONS[integration.type];
-
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-border bg-surface p-4 hover:border-border-strong transition-colors">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-sunken">
-          <TypeIcon className="h-4 w-4 text-muted" />
-        </div>
-        <div>
-          <p className="text-sm font-medium">{integration.label}</p>
-          <p className="text-xs text-muted">
-            {integration.status === "CONNECTED"
-              ? `Last sync: ${timeSince(integration.lastSyncAt)}`
-              : integration.status === "ERROR"
-              ? "Sync failed — check credentials"
-              : "Not connected"}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium",
-            STATUS_STYLES[integration.status]
-          )}
-        >
-          <StatusIcon className="h-3 w-3" />
-          {integration.status.charAt(0) + integration.status.slice(1).toLowerCase()}
-        </span>
-
-        {integration.status === "CONNECTED" && (
-          <button
-            onClick={() => onSync(integration.id)}
-            className="rounded-md p-1.5 text-muted hover:bg-surface-sunken hover:text-foreground"
-            title="Sync now"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
-        )}
-
-        <Button
-          size="sm"
-          variant={integration.status === "CONNECTED" ? "secondary" : "default"}
-          onClick={() => onToggle(integration.id)}
-        >
-          {integration.status === "CONNECTED" ? "Disconnect" : "Connect"}
-        </Button>
-      </div>
-    </div>
-  );
+  onAdd: (storeId: string, type: IntegrationType) => void;
 }
 
 function StoreSection({
@@ -215,128 +154,127 @@ function StoreSection({
   onToggle,
   onSync,
   onAdd,
-}: {
-  storeId: string;
-  storeName: string;
-  integrations: StoreIntegration[];
-  onToggle: (id: string) => void;
-  onSync: (id: string) => void;
-  onAdd: (storeId: string, type: IntegrationType) => void;
-}) {
-  const [open, setOpen] = useState(true);
-  const [addModal, setAddModal] = useState<IntegrationType | null>(null);
-  const delivery = MOCK_DELIVERY_INTEGRATIONS.find((d) => d.storeId === storeId);
+}: StoreSectionProps) {
+  const [expanded, setExpanded] = useState(true);
+  const [connectModal, setConnectModal] = useState<IntegrationType | null>(null);
+
+  const availableTypes: IntegrationType[] = ["SHOPIFY", "GENERIC_API", "GOOGLE_SHEETS"];
+  const connectedTypes = integrations.map((i) => i.type);
+  const unconnectedTypes = availableTypes.filter((t) => !connectedTypes.includes(t));
 
   return (
-    <div className="rounded-lg border border-border bg-surface">
+    <div className="rounded-xl border border-border bg-surface">
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-5 py-4 hover:bg-surface-sunken transition-colors rounded-lg"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between px-5 py-4"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface-sunken">
-            <Plug className="h-4 w-4 text-muted" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-sunken">
+            <ShoppingBag className="h-4 w-4 text-muted" />
           </div>
           <div className="text-left">
             <p className="text-sm font-semibold">{storeName}</p>
             <p className="text-xs text-muted">
-              {integrations.filter((i) => i.status === "CONNECTED").length} of{" "}
-              {integrations.length} connected
+              {integrations.filter((i) => i.status === "CONNECTED").length} / {integrations.length} connected
             </p>
           </div>
         </div>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted" />
-        )}
+        {expanded
+          ? <X className="h-4 w-4 text-muted" />
+          : <ShoppingBag className="h-4 w-4 text-muted" />
+        }
       </button>
 
-      {open && (
-        <div className="border-t border-border px-5 pb-5 pt-4 space-y-3">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
-            Order source
-          </p>
-          {integrations.length === 0 && (
-            <p className="text-xs text-muted">No integrations yet — add one below.</p>
-          )}
-          {integrations.map((int) => (
-            <IntegrationCard
-              key={int.id}
-              integration={int}
-              onToggle={onToggle}
-              onSync={onSync}
-            />
-          ))}
+      {expanded && (
+        <div className="border-t border-border px-5 py-4 space-y-3">
+          {integrations.map((integration) => {
+            const StatusIcon = STATUS_ICONS[integration.status];
+            const TypeIcon = TYPE_ICONS[integration.type as IntegrationType] ?? Globe;
 
-          <div className="flex gap-2 pt-1">
-            {(["SHOPIFY", "GENERIC_API", "GOOGLE_SHEETS"] as IntegrationType[]).map((type) => {
-              const Icon = TYPE_ICONS[type];
-              const alreadyConnected = integrations.some((i) => i.type === type);
-              return (
-                <button
-                  key={type}
-                  disabled={alreadyConnected}
-                  onClick={() => setAddModal(type)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                    alreadyConnected
-                      ? "cursor-default border-border text-muted-light"
-                      : "border-border text-muted hover:border-border-strong hover:text-foreground"
+            return (
+              <div key={integration.id} className="flex items-center gap-4 rounded-lg border border-border p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-sunken">
+                  <TypeIcon className="h-5 w-5 text-muted" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{integration.label}</p>
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <span className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium", STATUS_STYLES[integration.status])}>
+                      <StatusIcon className="h-3 w-3" />
+                      {integration.status === "CONNECTED" ? "Connected" : integration.status === "ERROR" ? "Error" : "Disconnected"}
+                    </span>
+                    {integration.status === "CONNECTED" && (
+                      <span className="text-[11px] text-muted">
+                        Last sync: {timeSince(integration.lastSyncAt ?? null)}
+                      </span>
+                    )}
+                    {integration.status === "ERROR" && (
+                      <span className="text-[11px] text-status-cancelled">
+                        Failed — check credentials
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {integration.status === "CONNECTED" && (
+                    <button
+                      onClick={() => onSync(integration.id)}
+                      className="rounded-md p-1.5 text-muted hover:bg-surface-sunken hover:text-foreground"
+                      title="Sync now"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </button>
                   )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {TYPE_LABELS[type]}
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="pt-2 text-[11px] font-medium uppercase tracking-wide text-muted">
-            Delivery / courier
-          </p>
-          <div className="flex items-center justify-between rounded-lg border border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-sunken">
-                <Truck className="h-4 w-4 text-muted" />
+                  <Button
+                    size="sm"
+                    variant={integration.status === "CONNECTED" ? "secondary" : "default"}
+                    onClick={() => onToggle(integration.id)}
+                  >
+                    {integration.status === "CONNECTED" ? "Disconnect" : "Connect"}
+                  </Button>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium">
-                  {delivery?.provider ?? "No courier connected"}
-                </p>
-                {delivery?.trackingWebhookUrl && (
-                  <p className="font-mono text-[11px] text-muted">
-                    {delivery.trackingWebhookUrl}
-                  </p>
-                )}
+            );
+          })}
+
+          {unconnectedTypes.length > 0 && (
+            <div className="pt-2">
+              <p className="mb-2 text-xs font-medium text-muted">Add integration</p>
+              <div className="flex flex-wrap gap-2">
+                {unconnectedTypes.map((type) => {
+                  const Icon = TYPE_ICONS[type] ?? Globe;
+                  const alreadyConnected = connectedTypes.includes(type);
+                  return (
+                    <button
+                      key={type}
+                      disabled={alreadyConnected}
+                      onClick={() => setConnectModal(type)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                        alreadyConnected
+                          ? "cursor-default border-border text-muted-light"
+                          : "border-border text-muted hover:border-border-strong hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {TYPE_LABELS[type] ?? type}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium",
-                delivery?.status === "CONNECTED"
-                  ? STATUS_STYLES.CONNECTED
-                  : STATUS_STYLES.DISCONNECTED
-              )}
-            >
-              {delivery?.status === "CONNECTED" ? (
-                <CheckCircle2 className="h-3 w-3" />
-              ) : (
-                <XCircle className="h-3 w-3" />
-              )}
-              {delivery?.status === "CONNECTED" ? "Connected" : "Not connected"}
-            </span>
-          </div>
+          )}
         </div>
       )}
 
-      {addModal && (
+      {connectModal && (
         <ConnectModal
-          type={addModal}
+          type={connectModal}
           storeId={storeId}
-          onClose={() => setAddModal(null)}
+          onClose={() => setConnectModal(null)}
           onConnect={(config) => {
-            onAdd(storeId, addModal);
+            onAdd(storeId, connectModal);
+            setConnectModal(null);
           }}
         />
       )}
@@ -347,7 +285,7 @@ function StoreSection({
 function IntegrationsContent() {
   const { canAccessStore } = useAuth();
   const { stores } = useStores();
-  const [integrations, setIntegrations] = useState(MOCK_INTEGRATIONS);
+  const [integrations, setIntegrations] = useState<StoreIntegration[]>(MOCK_INTEGRATIONS);
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
 
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
@@ -364,7 +302,11 @@ function IntegrationsContent() {
         if (i.id !== id) return i;
         const newStatus: IntegrationStatus =
           i.status === "CONNECTED" ? "DISCONNECTED" : "CONNECTED";
-        return { ...i, status: newStatus, lastSyncAt: newStatus === "CONNECTED" ? new Date().toISOString() : i.lastSyncAt };
+        return {
+          ...i,
+          status: newStatus,
+          lastSyncAt: newStatus === "CONNECTED" ? new Date().toISOString() : i.lastSyncAt,
+        };
       })
     );
   }
@@ -385,7 +327,7 @@ function IntegrationsContent() {
       storeId,
       type,
       status: "CONNECTED",
-      label: TYPE_LABELS[type],
+      label: TYPE_LABELS[type] ?? type,
       config: {},
       lastSyncAt: new Date().toISOString(),
     };

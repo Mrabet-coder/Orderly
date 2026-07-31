@@ -32,6 +32,9 @@ export type OrderStatus =
   | "ANNULE"
   | "A_VERIFIER";
 
+  export type IntegrationStatus = "CONNECTED" | "DISCONNECTED" | "ERROR";
+  export type IntegrationType = "SHOPIFY" | "CUSTOM" | "MARKETPLACE" | "DELIVERY";
+
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   NOUVEAU: "Nouveau",
   CONFIRMATION_EN_COURS: "Confirmation en cours",

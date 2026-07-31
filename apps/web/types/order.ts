@@ -25,7 +25,8 @@ export type FulfillmentStatus =
   | "CONFIRMATION_EN_COURS"
   | "CONFIRME"
   | "EN_PREPARATION"
-  | "EXPEDIE"
+  | "A_EXPEDIER"
+  | "AU_DEPOT_LIVREUR"
   | "EN_COURS_DE_LIVRAISON"
   | "LIVRE"
   | "PAYE"
@@ -121,7 +122,8 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   CONFIRMATION_EN_COURS: "Confirmation en cours",
   CONFIRME: "Confirmé",
   EN_PREPARATION: "En préparation",
-  EXPEDIE: "Expédié",
+  A_EXPEDIER: "À expédier",
+  AU_DEPOT_LIVREUR: "Au dépôt livreur",
   EN_COURS_DE_LIVRAISON: "En cours de livraison",
   LIVRE: "Livré",
   PAYE: "Payé",

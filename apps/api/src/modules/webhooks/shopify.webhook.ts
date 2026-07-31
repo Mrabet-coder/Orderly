@@ -89,7 +89,7 @@ export class ShopifyWebhook {
       where: { id: order.id },
       data: {
         fulfillmentStatus: 'FULFILLED',
-        orderStatus: 'EXPEDIE',
+        orderStatus: 'A_EXPEDIER',
       },
     });
 
@@ -263,7 +263,7 @@ export class ShopifyWebhook {
   ): OrderStatus {
     if (financial === 'VOIDED') return 'ANNULE';
     if (financial === 'REFUNDED') return 'RETOUR';
-    if (fulfillment === 'FULFILLED') return 'EXPEDIE';
+    if (fulfillment === 'FULFILLED') return 'A_EXPEDIER';
     if (fulfillment === 'PARTIAL') return 'EN_PREPARATION';
     if (financial === 'PAID') return 'CONFIRME';
     return 'NOUVEAU';

@@ -9,13 +9,15 @@ const QUICK_ACTIONS: { status: OrderStatus; label: string; color?: string }[] = 
   { status: "CONFIRMATION_EN_COURS", label: "Confirmation en cours" },
   { status: "CONFIRME", label: "Confirmé" },
   { status: "EN_PREPARATION", label: "En préparation" },
-  { status: "EXPEDIE", label: "Expédié" },
+  { status: "A_EXPEDIER", label: "À expédier" },
+  { status: "AU_DEPOT_LIVREUR", label: "Au dépôt livreur" },
   { status: "EN_COURS_DE_LIVRAISON", label: "En cours de livraison" },
   { status: "LIVRE", label: "Livré" },
   { status: "PAYE", label: "Payé" },
   { status: "RETOUR", label: "Retour" },
   { status: "RETOUR_DEPOT", label: "Retour dépôt" },
   { status: "RETOUR_RECU", label: "Retour reçu" },
+  { status: "A_VERIFIER", label: "À vérifier", color: "text-status-cancelled" },
   { status: "ANNULE", label: "Annulé", color: "text-status-cancelled" },
 ];
 

@@ -31,8 +31,7 @@ function formatMoney(n: number, currency: string) {
 }
 
 function openBordereau(orderId: string) {
-  const token = getToken();
-  window.open(`${API}/orders/${orderId}/bordereau?token=${token}`, '_blank');
+  window.open(`${API}/orders/${orderId}/bordereau`, "_blank");
 }
 
 function PrepareModal({
@@ -59,7 +58,7 @@ function PrepareModal({
           Authorization: `Bearer ${getToken()}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ status: "EXPEDIE" }),
+        body: JSON.stringify({ status: "A_EXPEDIER" }),
       });
       onDone();
       onClose();
@@ -128,6 +127,9 @@ function PrepareModal({
                     checked[li.id] && "line-through text-muted"
                   )}>
                     {li.title}
+                    {li.variantTitle && (
+                      <span className="ml-1 text-xs text-muted">— {li.variantTitle}</span>
+                    )}
                   </p>
                   <p className="text-xs text-muted font-mono">
                     {li.sku} · Qté {li.quantity}
@@ -180,7 +182,7 @@ function PrepareModal({
             onClick={handleReady}
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
-            {loading ? "Validation..." : "Valider la préparation"}
+            {loading ? "Validation..." : "Valider → À expédier"}
           </Button>
         </div>
       </div>
@@ -198,8 +200,10 @@ function PreparationContent() {
   const [search, setSearch] = useState("");
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
   const [prepareOrder, setPrepareOrder] = useState<Order | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState<"all" | "CONFIRME" | "EN_PREPARATION" | "EXPEDIE">("all");
+  const [filter, setFilter] = useState<"all" | "CONFIRME" | "EN_PREPARATION" | "A_EXPEDIER">("all");
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
 
@@ -219,7 +223,7 @@ function PreparationContent() {
       const data = await res.json();
       const all: Order[] = data.orders ?? [];
       setOrders(all.filter((o) =>
-        ["CONFIRME", "EN_PREPARATION", "EXPEDIE"].includes(o.orderStatus)
+        ["CONFIRME", "EN_PREPARATION", "A_EXPEDIER"].includes(o.orderStatus)
       ));
     } catch {
       setOrders([]);
@@ -231,6 +235,33 @@ function PreparationContent() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    const pageIds = pageOrders.map((o) => o.id);
+    const allSelected = pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function printBulk() {
+    const ids = Array.from(selectedIds);
+    ids.forEach((id) => {
+      setTimeout(() => openBordereau(id), 300);
+    });
+  }
 
   const filtered = orders.filter((o) => {
     if (!selectedStoreIds.includes(o.storeId)) return false;
@@ -248,18 +279,18 @@ function PreparationContent() {
 
   const confirmeCount = orders.filter((o) => o.orderStatus === "CONFIRME").length;
   const prepCount = orders.filter((o) => o.orderStatus === "EN_PREPARATION").length;
-  const expedieCount = orders.filter((o) => o.orderStatus === "EXPEDIE").length;
+  const aExpedierCount = orders.filter((o) => o.orderStatus === "A_EXPEDIER").length;
 
   const STATUS_STYLE: Record<string, string> = {
     CONFIRME: "bg-status-new-bg text-status-new",
     EN_PREPARATION: "bg-status-processing-bg text-status-processing",
-    EXPEDIE: "bg-status-shipped-bg text-status-shipped",
+    A_EXPEDIER: "bg-status-shipped-bg text-status-shipped",
   };
 
   const STATUS_LABEL: Record<string, string> = {
     CONFIRME: "Confirmé",
     EN_PREPARATION: "En préparation",
-    EXPEDIE: "Expédié",
+    A_EXPEDIER: "À expédier",
   };
 
   return (
@@ -273,7 +304,15 @@ function PreparationContent() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-5">
           <h1 className="text-base font-semibold">Préparation</h1>
-          <p className="text-xs text-muted">{orders.length} commandes</p>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="secondary" onClick={printBulk}>
+                <Printer className="h-3.5 w-3.5" />
+                Imprimer {selectedIds.size} bordereau{selectedIds.size > 1 ? "x" : ""}
+              </Button>
+            )}
+            <p className="text-xs text-muted">{orders.length} commandes</p>
+          </div>
         </header>
 
         {/* Stats */}
@@ -287,8 +326,8 @@ function PreparationContent() {
             <p className="mt-1 text-2xl font-bold text-status-processing">{prepCount}</p>
           </div>
           <div className="rounded-lg bg-status-shipped-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-shipped">Expédiés</p>
-            <p className="mt-1 text-2xl font-bold text-status-shipped">{expedieCount}</p>
+            <p className="text-xs font-medium text-status-shipped">À expédier</p>
+            <p className="mt-1 text-2xl font-bold text-status-shipped">{aExpedierCount}</p>
           </div>
         </div>
 
@@ -308,7 +347,7 @@ function PreparationContent() {
               { key: "all", label: "Tous", count: orders.length },
               { key: "CONFIRME", label: "À préparer", count: confirmeCount },
               { key: "EN_PREPARATION", label: "En cours", count: prepCount },
-              { key: "EXPEDIE", label: "Expédiés", count: expedieCount },
+              { key: "A_EXPEDIER", label: "À expédier", count: aExpedierCount },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -340,6 +379,14 @@ function PreparationContent() {
             <table className="w-full border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-border text-left text-xs font-medium text-muted">
+                  <th className="w-10 px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={pageOrders.length > 0 && pageOrders.every((o) => selectedIds.has(o.id))}
+                      onChange={toggleSelectAll}
+                      className="h-3.5 w-3.5 rounded border-border-strong accent-primary"
+                    />
+                  </th>
                   <th className="px-4 py-2.5">Commande</th>
                   <th className="px-4 py-2.5">Date</th>
                   <th className="px-4 py-2.5">Client</th>
@@ -354,8 +401,19 @@ function PreparationContent() {
                 {pageOrders.map((order) => (
                   <tr
                     key={order.id}
-                    className="border-b border-border transition-colors hover:bg-surface-sunken"
+                    className={cn(
+                      "border-b border-border transition-colors hover:bg-surface-sunken",
+                      selectedIds.has(order.id) && "bg-primary-soft/30"
+                    )}
                   >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(order.id)}
+                        onChange={() => toggleSelect(order.id)}
+                        className="h-3.5 w-3.5 rounded border-border-strong accent-primary"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-[13px] font-semibold">{order.orderNumber}</span>
                     </td>
@@ -400,7 +458,7 @@ function PreparationContent() {
                             Continuer
                           </Button>
                         )}
-                        {order.orderStatus === "EXPEDIE" && (
+                        {order.orderStatus === "A_EXPEDIER" && (
                           <>
                             <span className="text-xs text-status-shipped font-medium flex items-center gap-1">
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -434,7 +492,10 @@ function PreparationContent() {
         </div>
 
         <footer className="flex shrink-0 items-center justify-between border-t border-border bg-surface px-5 py-2.5">
-          <p className="text-xs text-muted">{filtered.length} commandes</p>
+          <p className="text-xs text-muted">
+            {filtered.length} commandes
+            {selectedIds.size > 0 && ` · ${selectedIds.size} sélectionnée${selectedIds.size > 1 ? "s" : ""}`}
+          </p>
           <div className="flex items-center gap-1">
             <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
               <ChevronLeft className="h-3.5 w-3.5" />

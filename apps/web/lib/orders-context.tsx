@@ -23,7 +23,6 @@ const OrdersContext = createContext<OrdersContextValue | null>(null);
 
 function deriveStatuses(newStatus: OrderStatus) {
   switch (newStatus) {
-    case "EXPEDIE":
     case "EN_COURS_DE_LIVRAISON":
     case "LIVRE":
     case "PAYE":
@@ -37,6 +36,9 @@ function deriveStatuses(newStatus: OrderStatus) {
       return { fulfillmentStatus: "RESTOCKED" as const };
     default:
       return { fulfillmentStatus: "UNFULFILLED" as const };
+      case "A_EXPEDIER":
+case "AU_DEPOT_LIVREUR":
+  return { fulfillmentStatus: "PARTIAL" as const };
   }
 }
 

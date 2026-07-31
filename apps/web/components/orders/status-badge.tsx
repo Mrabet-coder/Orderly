@@ -13,7 +13,6 @@ const ORDER_STATUS_STYLE: Record<OrderStatus, string> = {
   CONFIRMATION_EN_COURS: "text-status-processing bg-status-processing-bg",
   CONFIRME: "text-status-new bg-status-new-bg",
   EN_PREPARATION: "text-status-processing bg-status-processing-bg",
-  EXPEDIE: "text-status-shipped bg-status-shipped-bg",
   EN_COURS_DE_LIVRAISON: "text-status-shipped bg-status-shipped-bg",
   LIVRE: "text-status-delivered bg-status-delivered-bg",
   PAYE: "text-status-delivered bg-status-delivered-bg",
@@ -22,6 +21,8 @@ const ORDER_STATUS_STYLE: Record<OrderStatus, string> = {
   RETOUR_RECU: "text-status-refunded bg-status-refunded-bg",
   ANNULE: "text-status-cancelled bg-status-cancelled-bg",
   A_VERIFIER: "text-status-cancelled bg-status-cancelled-bg",
+  A_EXPEDIER: "text-status-shipped bg-status-shipped-bg",
+AU_DEPOT_LIVREUR: "text-status-shipped bg-status-shipped-bg",
 };
 
 const FINANCIAL_STATUS_STYLE: Record<FinancialStatus, string> = {

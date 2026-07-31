@@ -31,7 +31,8 @@ function formatMoney(n: number, currency: string) {
 const DELIVERY_STATUSES: { status: OrderStatus; label: string; color: string }[] = [
   { status: "CONFIRME", label: "Confirmé", color: "text-status-new" },
   { status: "EN_PREPARATION", label: "En préparation", color: "text-status-processing" },
-  { status: "EXPEDIE", label: "Expédié", color: "text-status-shipped" },
+  { status: "A_EXPEDIER", label: "À expédier", color: "text-status-shipped" },
+  { status: "AU_DEPOT_LIVREUR", label: "Au dépôt livreur", color: "text-status-shipped" },
   { status: "EN_COURS_DE_LIVRAISON", label: "En cours de livraison", color: "text-status-shipped" },
   { status: "LIVRE", label: "Livré", color: "text-status-delivered" },
   { status: "PAYE", label: "Payé", color: "text-status-delivered" },
@@ -44,7 +45,8 @@ const DELIVERY_STATUSES: { status: OrderStatus; label: string; color: string }[]
 const STATUS_COLORS: Record<string, string> = {
   CONFIRME: "bg-status-new-bg text-status-new",
   EN_PREPARATION: "bg-status-processing-bg text-status-processing",
-  EXPEDIE: "bg-status-shipped-bg text-status-shipped",
+  A_EXPEDIER: "bg-status-shipped-bg text-status-shipped",
+  AU_DEPOT_LIVREUR: "bg-status-shipped-bg text-status-shipped",
   EN_COURS_DE_LIVRAISON: "bg-status-shipped-bg text-status-shipped",
   LIVRE: "bg-status-delivered-bg text-status-delivered",
   PAYE: "bg-status-delivered-bg text-status-delivered",
@@ -90,9 +92,8 @@ function ImportModal({
       };
 
       for (const row of rows) {
-        // Try to find barcode/order ID column
         const barcode = String(
-          row["Order ID"] ?? row["Barcode"] ?? row["barcode"] ?? row["order_id"] ?? 
+          row["Order ID"] ?? row["Barcode"] ?? row["barcode"] ?? row["order_id"] ??
           row["Reference"] ?? row["reference"] ?? row["ID"] ?? ""
         ).trim();
 
@@ -101,7 +102,6 @@ function ImportModal({
         const deliveredAt = row["Delivered At"] ?? row["delivered_at"] ?? row["Date livraison"] ?? null;
         const isPaid = row["Paid At"] ?? row["paid_at"] ?? row["Date paiement"] ?? deliveredAt ?? null;
 
-        // Match by externalOrderId
         const order = orders.find((o) =>
           o.externalOrderId === barcode ||
           o.externalOrderId === barcode.replace("#", "") ||
@@ -123,7 +123,6 @@ function ImportModal({
           continue;
         }
 
-        // Update status
         await fetch(`${API}/orders/${order.id}/status`, {
           method: "PATCH",
           headers: {
@@ -244,7 +243,7 @@ function ImportModal({
             <>
               <Button variant="secondary" className="flex-1" onClick={onClose}>Fermer</Button>
               <Button className="flex-1" onClick={() => { onDone(); onClose(); }}>
-                Actualiser les commandes
+                Actualiser
               </Button>
             </>
           ) : (
@@ -309,8 +308,9 @@ function StatusDropdown({
 const PAGE_SIZE = 25;
 
 const DELIVERY_STATUS_KEYS: OrderStatus[] = [
-  "CONFIRME", "EN_PREPARATION", "EXPEDIE", "EN_COURS_DE_LIVRAISON",
-  "LIVRE", "PAYE", "RETOUR", "RETOUR_DEPOT", "RETOUR_RECU", "ANNULE",
+  "CONFIRME", "EN_PREPARATION", "A_EXPEDIER", "AU_DEPOT_LIVREUR",
+  "EN_COURS_DE_LIVRAISON", "LIVRE", "PAYE", "RETOUR", "RETOUR_DEPOT",
+  "RETOUR_RECU", "ANNULE",
 ];
 
 function FulfillmentContent() {

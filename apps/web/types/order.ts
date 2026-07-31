@@ -33,7 +33,7 @@ export type OrderStatus =
   | "A_VERIFIER";
 
   export type IntegrationStatus = "CONNECTED" | "DISCONNECTED" | "ERROR";
-  export type IntegrationType = "SHOPIFY" | "CUSTOM" | "MARKETPLACE" | "DELIVERY";
+  export type IntegrationType = "SHOPIFY" | "CUSTOM" | "MARKETPLACE" | "DELIVERY" | "GENERIC_API" | "GOOGLE_SHEETS";
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   NOUVEAU: "Nouveau",

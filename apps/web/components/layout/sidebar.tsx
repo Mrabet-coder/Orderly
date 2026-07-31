@@ -27,21 +27,21 @@ import {
 } from "lucide-react";
 import { NotificationCenter } from "@/components/layout/notification-center";
 
-const NAV_ITEMS: { label: string; icon: React.ElementType; href: string; badge?: number }[] = [
+const NAV_ITEMS: { label: string; icon: React.ElementType; href: string; badge?: number; permission?: string }[] = [
   { label: "Vue d'ensemble", icon: LayoutGrid, href: "/" },
-  { label: "Confirmation", icon: Phone, href: "/confirmation" },
-  { label: "Préparation", icon: Package, href: "/preparation" },
-  { label: "Livraison", icon: Truck, href: "/fulfillment" },
-  { label: "Retours", icon: RotateCcw, href: "/retours" },
-  { label: "Réclamations", icon: AlertCircle, href: "/reclamation" },
-  { label: "Produits", icon: ShoppingBag, href: "/products" },
-  { label: "Alertes stock", icon: Bell, href: "/alerts" },
-  { label: "Scanner QR", icon: QrCode, href: "/scanner" },
-  { label: "Magasins", icon: StoreIcon, href: "/stores" },
-  { label: "Messagerie", icon: MessageSquare, href: "/inbox" },
-  { label: "Utilisateurs", icon: Users, href: "/users" },
-  { label: "Intégrations", icon: Plug, href: "/integrations" },
-  { label: "Paramètres", icon: Settings, href: "/settings" },
+  { label: "Confirmation", icon: Phone, href: "/confirmation", permission: "confirmation" },
+  { label: "Préparation", icon: Package, href: "/preparation", permission: "preparation" },
+  { label: "Livraison", icon: Truck, href: "/fulfillment", permission: "fulfillment" },
+  { label: "Retours", icon: RotateCcw, href: "/retours", permission: "retours" },
+  { label: "Réclamations", icon: AlertCircle, href: "/reclamation", permission: "reclamation" },
+  { label: "Produits", icon: ShoppingBag, href: "/products", permission: "products" },
+  { label: "Alertes stock", icon: Bell, href: "/alerts", permission: "alerts" },
+  { label: "Messagerie", icon: MessageSquare, href: "/inbox", permission: "inbox" },
+  { label: "Scanner QR", icon: QrCode, href: "/scanner", permission: "scanner" },
+  { label: "Magasins", icon: StoreIcon, href: "/stores", permission: "stores" },
+  { label: "Utilisateurs", icon: Users, href: "/users", permission: "users" },
+  { label: "Intégrations", icon: Plug, href: "/integrations", permission: "integrations" },
+  { label: "Paramètres", icon: Settings, href: "/settings", permission: "settings" },
 ];
 
 interface SidebarProps {
@@ -51,7 +51,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ stores, selectedStoreIds, onChangeSelectedStores }: SidebarProps) {
-  const { user, logout, canAccessStore } = useAuth();
+  const { user, logout, canAccessStore, hasPermission } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [storeOpen, setStoreOpen] = useState(false);
@@ -70,6 +70,10 @@ export function Sidebar({ stores, selectedStoreIds, onChangeSelectedStores }: Si
     onChangeSelectedStores(stores.map((s) => s.id));
     setStoreOpen(false);
   }
+
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !item.permission || hasPermission(item.permission)
+  );
 
   return (
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-border bg-surface">
@@ -173,7 +177,7 @@ export function Sidebar({ stores, selectedStoreIds, onChangeSelectedStores }: Si
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-2">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href;
           return (
@@ -199,7 +203,7 @@ export function Sidebar({ stores, selectedStoreIds, onChangeSelectedStores }: Si
         })}
       </nav>
 
-      {/* Bottom — user name only */}
+      {/* Bottom */}
       <div className="border-t border-border px-3 py-2.5">
         <p className="text-xs font-medium truncate">{user?.name}</p>
         <p className="text-[11px] text-muted truncate">{user?.email}</p>

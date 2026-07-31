@@ -23,6 +23,7 @@ import {
   QrCode,
   AlertCircle,
   MessageSquare,
+  RotateCcw,
 } from "lucide-react";
 import { NotificationCenter } from "@/components/layout/notification-center";
 
@@ -31,6 +32,7 @@ const NAV_ITEMS: { label: string; icon: React.ElementType; href: string; badge?:
   { label: "Confirmation", icon: Phone, href: "/confirmation" },
   { label: "Préparation", icon: Package, href: "/preparation" },
   { label: "Livraison", icon: Truck, href: "/fulfillment" },
+  { label: "Retours", icon: RotateCcw, href: "/retours" },
   { label: "Réclamations", icon: AlertCircle, href: "/reclamation" },
   { label: "Produits", icon: ShoppingBag, href: "/products" },
   { label: "Alertes stock", icon: Bell, href: "/alerts" },

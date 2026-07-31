@@ -471,10 +471,10 @@ export function OrderDetailDrawer({
           <Button variant="secondary" className="flex-1">
             Voir sur {order.storeName.includes("Shopify") ? "Shopify" : "source"}
           </Button>
-          <Button className="flex-1" onClick={() => handleStatusChange("EXPEDIE")}>
-            <Truck className="h-3.5 w-3.5" />
-            Expedier
-          </Button>
+          <Button className="flex-1" onClick={() => handleStatusChange("A_EXPEDIER")}>
+  <Truck className="h-3.5 w-3.5" />
+  A expédier
+</Button>
         </div>
       </div>
 

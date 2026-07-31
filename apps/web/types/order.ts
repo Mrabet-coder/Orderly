@@ -152,3 +152,20 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   STORE_MANAGER: "Store Manager",
   STAFF: "Staff",
 };
+export const FINANCIAL_STATUS_LABELS: Record<FinancialStatus, string> = {
+  PENDING: "Pending",
+  AUTHORIZED: "Authorized",
+  PARTIALLY_PAID: "Partially Paid",
+  PAID: "Paid",
+  PARTIALLY_REFUNDED: "Partially Refunded",
+  REFUNDED: "Refunded",
+  VOIDED: "Voided",
+};
+
+export const FULFILLMENT_STATUS_LABELS: Record<FulfillmentStatus, string> = {
+  UNFULFILLED: "Unfulfilled",
+  PARTIAL: "Partial",
+  FULFILLED: "Fulfilled",
+  RESTOCKED: "Restocked",
+  CANCELLED: "Cancelled",
+};

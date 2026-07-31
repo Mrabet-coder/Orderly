@@ -14,6 +14,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   canAccessStore: (storeId: string) => boolean;
+  hasPermission: (permission: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -47,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: "",
         role: data.user.role,
         storeIds: data.user.storeIds ?? [],
+        permissions: data.user.permissions ?? [],
         avatarInitials: data.user.name
           .split(" ")
           .map((n: string) => n[0])
@@ -59,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.localStorage.setItem(TOKEN_KEY, data.token);
       window.localStorage.setItem(USER_KEY, JSON.stringify(appUser));
       setUser(appUser);
-window.dispatchEvent(new Event('orderly:login'));
-return { ok: true };
+      window.dispatchEvent(new Event('orderly:login'));
+      return { ok: true };
     } catch (err: any) {
       let message = "Login failed.";
       try {
@@ -84,8 +86,14 @@ return { ok: true };
     return user.storeIds.includes(storeId);
   }
 
+  function hasPermission(permission: string): boolean {
+    if (!user) return false;
+    if (user.role === "SUPER_ADMIN") return true;
+    return (user.permissions ?? []).includes(permission);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, canAccessStore }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, canAccessStore, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

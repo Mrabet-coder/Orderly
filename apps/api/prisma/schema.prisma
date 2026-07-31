@@ -110,13 +110,11 @@ model Order {
   notes             String?
   internalNote      String?
 
-  // Confirmation call fields
   confirmationStatus    String?
   cancellationReason    String?
   cancellationNote      String?
   callAttempts          Json?
 
-  // Delivery fields
   deliveryCompany       String?
   scheduledDeliveryDate DateTime?
 
@@ -277,11 +275,15 @@ model DeliveryIntegration {
 // ----------- AUTH / ACCESS -----------
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   name         String
-  role         UserRole @default(STAFF)
+  role         UserRole  @default(STAFF)
   passwordHash String
+  permissions  String[]  @default([])
+  inviteToken  String?
+  inviteExpiry DateTime?
+  isActive     Boolean   @default(true)
 
   storeAccess  UserStoreAccess[]
 

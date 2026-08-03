@@ -293,4 +293,47 @@ export class OrdersService {
 
     return { order: updatedOrder, refund };
   }
+  async detectFromMessage(conversationText: string) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('No Anthropic API key');
+  
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 500,
+        messages: [
+          {
+            role: 'user',
+            content: `Analyse cette conversation client et extrait les informations de commande. Réponds UNIQUEMENT en JSON valide sans markdown:
+  {
+    "customerName": "nom complet ou null",
+    "customerPhone": "numero de telephone ou null",
+    "city": "ville ou null",
+    "address": "adresse complete ou null",
+    "products": [{"title": "nom produit", "quantity": nombre, "price": prix_ou_0}],
+    "confidence": 0.0_a_1.0
+  }
+  
+  Conversation:
+  ${conversationText}`,
+          },
+        ],
+      }),
+    });
+  
+    const data = await response.json() as any;
+    const text = data.content?.[0]?.text ?? '{}';
+    
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { confidence: 0 };
+    }
+  }
 }

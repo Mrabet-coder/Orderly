@@ -104,4 +104,11 @@ export class OrdersController {
   ) {
     return this.orders.refund(id, body.amount, body.reason ?? '', req.user.id);
   }
+  @Post('manual')
+createManual(
+  @Body() body: any,
+  @Request() req: any,
+) {
+  return this.orders.createManual(body, req.user.id);
+}
 }

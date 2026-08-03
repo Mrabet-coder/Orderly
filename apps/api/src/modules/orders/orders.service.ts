@@ -89,6 +89,111 @@ export class OrdersService {
     };
   }
 
+  async createManual(data: any, actorId: string) {
+    const orderNumber = `#M${Date.now().toString().slice(-6)}`;
+
+    const order = await this.prisma.order.create({
+      data: {
+        storeId: data.storeId,
+        externalOrderId: `manual_${Date.now()}`,
+        orderNumber,
+        financialStatus: 'PENDING',
+        fulfillmentStatus: 'UNFULFILLED',
+        orderStatus: 'NOUVEAU',
+        customerName: data.customerName ?? null,
+        customerPhone: data.customerPhone ?? null,
+        shippingAddress: data.shippingAddress ?? null,
+        currency: data.currency ?? 'TND',
+        subtotal: data.subtotal ?? 0,
+        taxTotal: 0,
+        shippingTotal: 0,
+        total: data.total ?? 0,
+        totalRefunded: 0,
+        tags: [data.source ?? 'manual'],
+        sourceCreatedAt: new Date(),
+        lineItems: {
+          create: (data.lineItems ?? []).map((li: any) => ({
+            title: li.title,
+            sku: li.sku ?? null,
+            quantity: li.quantity,
+            price: li.price ?? 0,
+            fulfilledQty: 0,
+            refundedQty: 0,
+          })),
+        },
+      },
+    });
+
+    await this.prisma.orderEvent.create({
+      data: {
+        orderId: order.id,
+        eventType: 'order_created_manual',
+        payload: { source: data.source ?? 'manual' },
+        actor: actorId,
+      },
+    });
+
+    return order;
+  }
+
+  async updateOrder(
+    orderId: string,
+    data: any,
+    actorId: string,
+  ) {
+    const existing = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!existing) throw new Error('Order not found');
+
+    let subtotal = Number(existing.subtotal);
+    if (data.lineItems) {
+      subtotal = data.lineItems.reduce((s: number, li: any) => s + li.price * li.quantity, 0);
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        ...(data.customerName !== undefined && { customerName: data.customerName }),
+        ...(data.customerPhone !== undefined && { customerPhone: data.customerPhone }),
+        ...(data.customerPhone2 !== undefined && { customerPhone2: data.customerPhone2 }),
+        ...(data.shippingAddress !== undefined && { shippingAddress: data.shippingAddress }),
+        ...(data.internalNote !== undefined && { internalNote: data.internalNote }),
+        ...(data.deliveryCompany !== undefined && { deliveryCompany: data.deliveryCompany }),
+        ...(data.scheduledDeliveryDate !== undefined && {
+          scheduledDeliveryDate: data.scheduledDeliveryDate ? new Date(data.scheduledDeliveryDate) : null,
+        }),
+        ...(data.tags !== undefined && { tags: data.tags }),
+        ...(data.lineItems && {
+          subtotal,
+          total: subtotal + Number(existing.taxTotal) + Number(existing.shippingTotal),
+          lineItems: {
+            deleteMany: {},
+            create: data.lineItems.map((li: any) => ({
+              title: li.title,
+              sku: li.sku ?? null,
+              variantTitle: li.variantTitle ?? null,
+              quantity: li.quantity,
+              price: li.price,
+              fulfilledQty: 0,
+              refundedQty: 0,
+            })),
+          },
+        }),
+      },
+      include: { lineItems: true },
+    });
+
+    await this.prisma.orderEvent.create({
+      data: {
+        orderId,
+        eventType: 'order_edited',
+        payload: { fields: Object.keys(data) },
+        actor: actorId,
+      },
+    });
+
+    return updated;
+  }
+
   async updateStatus(
     orderId: string,
     status: OrderStatus,
@@ -114,78 +219,6 @@ export class OrdersService {
     });
 
     return order;
-  }
-
-  async updateOrder(
-    orderId: string,
-    data: {
-      customerName?: string;
-      customerPhone?: string;
-      customerPhone2?: string;
-      shippingAddress?: any;
-      internalNote?: string;
-      deliveryCompany?: string;
-      scheduledDeliveryDate?: string;
-      tags?: string[];
-      lineItems?: { id?: string; title: string; sku?: string; quantity: number; price: number; variantTitle?: string }[];
-    },
-    actorId: string,
-  ) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: { lineItems: true },
-    });
-    if (!order) throw new Error('Order not found');
-
-    // Recalculate total if line items changed
-    let subtotal = Number(order.subtotal);
-    if (data.lineItems) {
-      subtotal = data.lineItems.reduce((s, li) => s + li.price * li.quantity, 0);
-    }
-
-    const updated = await this.prisma.order.update({
-      where: { id: orderId },
-      data: {
-        ...(data.customerName && { customerName: data.customerName }),
-        ...(data.customerPhone && { customerPhone: data.customerPhone }),
-        ...(data.customerPhone2 !== undefined && { customerPhone2: data.customerPhone2 }),
-        ...(data.shippingAddress && { shippingAddress: data.shippingAddress }),
-        ...(data.internalNote !== undefined && { internalNote: data.internalNote }),
-        ...(data.deliveryCompany !== undefined && { deliveryCompany: data.deliveryCompany }),
-        ...(data.scheduledDeliveryDate !== undefined && {
-          scheduledDeliveryDate: data.scheduledDeliveryDate ? new Date(data.scheduledDeliveryDate) : null,
-        }),
-        ...(data.tags && { tags: data.tags }),
-        ...(data.lineItems && {
-          subtotal,
-          total: subtotal + Number(order.taxTotal) + Number(order.shippingTotal),
-          lineItems: {
-            deleteMany: {},
-            create: data.lineItems.map((li) => ({
-              title: li.title,
-              sku: li.sku ?? null,
-              variantTitle: li.variantTitle ?? null,
-              quantity: li.quantity,
-              price: li.price,
-              fulfilledQty: 0,
-              refundedQty: 0,
-            })),
-          },
-        }),
-      },
-      include: { lineItems: true },
-    });
-
-    await this.prisma.orderEvent.create({
-      data: {
-        orderId,
-        eventType: 'order_edited',
-        payload: { fields: Object.keys(data) },
-        actor: actorId,
-      },
-    });
-
-    return updated;
   }
 
   async updateCallAttempts(orderId: string, callAttempts: any[]) {

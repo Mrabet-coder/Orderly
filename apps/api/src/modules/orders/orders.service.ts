@@ -303,7 +303,7 @@ export class OrdersService {
       /(?:je suis|mon nom est|name:|nom:?)\s*([A-Za-zÀ-ÿ]+\s+[A-Za-zÀ-ÿ]+)/i,
       /([A-Z][a-zÀ-ÿ]+\s+[A-Z][a-zÀ-ÿ]+)/,
     ];
-    let customerName = null;
+    let customerName: string | null = null;
     for (const p of namePatterns) {
       const m = conversationText.match(p);
       if (m) { customerName = m[1].trim(); break; }

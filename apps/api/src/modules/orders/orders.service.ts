@@ -329,10 +329,22 @@ export class OrdersService {
   
     const data = await response.json() as any;
     const text = data.content?.[0]?.text ?? '{}';
-    
+
     try {
-      return JSON.parse(text);
+      // Remove markdown code blocks if present
+      const clean = text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
+      return JSON.parse(clean);
     } catch {
+      // Try to extract JSON from the text
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          return JSON.parse(match[0]);
+        } catch {}
+      }
       return { confidence: 0 };
     }
   }

@@ -368,59 +368,29 @@ function InboxContent() {
   async function analyzeConversation() {
     if (!activeConv || analyzing) return;
     setAnalyzing(true);
-
+  
     try {
       const conversationText = activeConv.messages
         .map((m) => `${m.from === "customer" ? "Client" : "Agent"}: ${m.text}`)
         .join("\n");
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+  
+      const response = await fetch(`${API}/orders/detect-from-message`, {
         method: "POST",
         headers: {
+          Authorization: `Bearer ${getToken()}`,
           "Content-Type": "application/json",
-          "anthropic-version": "2023-06-01",
-          "x-api-key": "",
         },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `Analyse cette conversation et extrait les informations de commande. Réponds UNIQUEMENT en JSON avec ce format exact:
-{
-  "customerName": "nom complet ou null",
-  "customerPhone": "numéro de téléphone ou null",
-  "city": "ville ou null",
-  "address": "adresse ou null",
-  "products": [{"title": "nom produit", "quantity": nombre, "price": prix ou null}],
-  "confidence": nombre entre 0 et 1
-}
-
-Conversation:
-${conversationText}`,
-            },
-          ],
-        }),
+        body: JSON.stringify({ messages: conversationText }),
       });
-
-      const data = await response.json();
-      const text = data.content?.[0]?.text ?? "{}";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-
+  
+      const parsed = await response.json();
+  
       if (parsed.confidence > 0.3) {
-        const detected: DetectedOrder = {
-          ...parsed,
-          status: "detected",
-        };
-
-        // Auto-create order if we have enough info
+        const detected: DetectedOrder = { ...parsed, status: "detected" };
+  
         if (parsed.customerName && parsed.customerPhone && parsed.products?.length > 0 && activeStore) {
-          const total = parsed.products.reduce(
-            (s: number, p: any) => s + (p.price ?? 0) * p.quantity, 0
-          );
-
+          const total = parsed.products.reduce((s: number, p: any) => s + (p.price ?? 0) * p.quantity, 0);
+  
           const orderRes = await fetch(`${API}/orders/manual`, {
             method: "POST",
             headers: {
@@ -431,10 +401,7 @@ ${conversationText}`,
               storeId: activeStore.id,
               customerName: parsed.customerName,
               customerPhone: parsed.customerPhone,
-              shippingAddress: {
-                city: parsed.city,
-                address1: parsed.address,
-              },
+              shippingAddress: { city: parsed.city, address1: parsed.address },
               currency: "TND",
               subtotal: total,
               total,
@@ -447,7 +414,7 @@ ${conversationText}`,
               })),
             }),
           });
-
+  
           if (orderRes.ok) {
             const orderData = await orderRes.json();
             detected.status = "created";
@@ -455,11 +422,14 @@ ${conversationText}`,
             detected.orderNumber = orderData.orderNumber;
           }
         }
-
+  
         updateConversation(activeConv.id, { detectedOrder: detected });
+      } else {
+        alert("Pas assez d'informations détectées. Ajoutez nom, téléphone et produit dans la conversation.");
       }
     } catch (e) {
       console.error(e);
+      alert("Erreur lors de la détection.");
     } finally {
       setAnalyzing(false);
     }

@@ -45,6 +45,21 @@ export class OrdersController {
     res.send(html);
   }
 
+  @Post('manual')
+  createManual(
+    @Body() body: any,
+    @Request() req: any,
+  ) {
+    return this.orders.createManual(body, req.user.id);
+  }
+
+  @Post('detect-from-message')
+  detectFromMessage(
+    @Body() body: { messages: string },
+  ) {
+    return this.orders.detectFromMessage(body.messages);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.orders.findOne(id);
@@ -104,11 +119,4 @@ export class OrdersController {
   ) {
     return this.orders.refund(id, body.amount, body.reason ?? '', req.user.id);
   }
-  @Post('manual')
-createManual(
-  @Body() body: any,
-  @Request() req: any,
-) {
-  return this.orders.createManual(body, req.user.id);
-}
 }

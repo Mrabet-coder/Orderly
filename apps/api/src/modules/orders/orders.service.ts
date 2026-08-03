@@ -294,43 +294,54 @@ export class OrdersService {
     return { order: updatedOrder, refund };
   }
   async detectFromMessage(conversationText: string) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return { error: 'No API key', confidence: 0 };
+    // Extract phone numbers
+    const phoneMatch = conversationText.match(/(\+?216\s?[\d\s]{8,}|\b[2459]\d{7}\b)/);
+    const customerPhone = phoneMatch ? phoneMatch[0].replace(/\s/g, '') : null;
   
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 500,
-        messages: [
-          {
-            role: 'user',
-            content: `Extract order info from this conversation. Reply ONLY with valid JSON, no markdown:
-  {"customerName":"string or null","customerPhone":"string or null","city":"string or null","address":"string or null","products":[{"title":"string","quantity":1,"price":0}],"confidence":0.9}
-  
-  Conversation:
-  ${conversationText}`,
-          },
-        ],
-      }),
-    });
-  
-    const raw = await response.json() as any;
-    
-    // Return raw for debugging
-    if (!raw.content) return { debug: raw, confidence: 0 };
-    
-    const text = raw.content[0]?.text ?? '{}';
-    const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    try {
-      return JSON.parse(clean);
-    } catch {
-      return { debug: text, confidence: 0 };
+    // Extract name - look for patterns like "Name Surname" or after keywords
+    const namePatterns = [
+      /(?:je suis|mon nom est|name:|nom:?)\s*([A-Za-zÀ-ÿ]+\s+[A-Za-zÀ-ÿ]+)/i,
+      /([A-Z][a-zÀ-ÿ]+\s+[A-Z][a-zÀ-ÿ]+)/,
+    ];
+    let customerName = null;
+    for (const p of namePatterns) {
+      const m = conversationText.match(p);
+      if (m) { customerName = m[1].trim(); break; }
     }
+  
+    // Extract city
+    const cities = ['Tunis', 'Sfax', 'Sousse', 'Bizerte', 'Nabeul', 'Monastir', 'Mahdia', 'Gafsa', 'Kairouan', 'Gabes', 'Ariana', 'Ben Arous', 'Manouba', 'Zaghouan', 'La Marsa', 'Carthage', 'Hammamet'];
+    const city = cities.find(c => conversationText.toLowerCase().includes(c.toLowerCase())) ?? null;
+  
+    // Extract products - "N product" patterns
+    const products: any[] = [];
+    const productRegex = /(\d+)\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ\s]{2,25})/g;
+    let match;
+    while ((match = productRegex.exec(conversationText)) !== null) {
+      const qty = parseInt(match[1]);
+      const title = match[2].trim();
+      if (qty > 0 && qty < 50 && !['sur', 'de', 'le', 'la', 'les', 'un', 'une'].includes(title.toLowerCase())) {
+        products.push({ title, quantity: qty, price: 0 });
+      }
+    }
+  
+    // Extract price
+    const priceMatch = conversationText.match(/(\d+)\s*(?:TND|DT|dinars?)/i);
+    if (priceMatch && products.length > 0) {
+      products[0].price = parseInt(priceMatch[1]);
+    }
+  
+    const confidence =
+      (customerName ? 0.35 : 0) +
+      (customerPhone ? 0.35 : 0) +
+      (products.length > 0 ? 0.3 : 0);
+  
+    return {
+      customerName,
+      customerPhone,
+      city,
+      address: null,
+      products: products.slice(0, 5),
+      confidence,
+    };
   }}

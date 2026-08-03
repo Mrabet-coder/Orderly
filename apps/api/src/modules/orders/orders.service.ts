@@ -295,7 +295,7 @@ export class OrdersService {
   }
   async detectFromMessage(conversationText: string) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('No Anthropic API key');
+    if (!apiKey) return { error: 'No API key', confidence: 0 };
   
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -310,15 +310,8 @@ export class OrdersService {
         messages: [
           {
             role: 'user',
-            content: `Analyse cette conversation client et extrait les informations de commande. Réponds UNIQUEMENT en JSON valide sans markdown:
-  {
-    "customerName": "nom complet ou null",
-    "customerPhone": "numero de telephone ou null",
-    "city": "ville ou null",
-    "address": "adresse complete ou null",
-    "products": [{"title": "nom produit", "quantity": nombre, "price": prix_ou_0}],
-    "confidence": 0.0_a_1.0
-  }
+            content: `Extract order info from this conversation. Reply ONLY with valid JSON, no markdown:
+  {"customerName":"string or null","customerPhone":"string or null","city":"string or null","address":"string or null","products":[{"title":"string","quantity":1,"price":0}],"confidence":0.9}
   
   Conversation:
   ${conversationText}`,
@@ -327,25 +320,17 @@ export class OrdersService {
       }),
     });
   
-    const data = await response.json() as any;
-    const text = data.content?.[0]?.text ?? '{}';
-
+    const raw = await response.json() as any;
+    
+    // Return raw for debugging
+    if (!raw.content) return { debug: raw, confidence: 0 };
+    
+    const text = raw.content[0]?.text ?? '{}';
+    const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
     try {
-      // Remove markdown code blocks if present
-      const clean = text
-        .replace(/```json/g, '')
-        .replace(/```/g, '')
-        .trim();
       return JSON.parse(clean);
     } catch {
-      // Try to extract JSON from the text
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          return JSON.parse(match[0]);
-        } catch {}
-      }
-      return { confidence: 0 };
+      return { debug: text, confidence: 0 };
     }
-  }
-}
+  }}

@@ -22,7 +22,11 @@ const ORDER_STATUS_STYLE: Record<OrderStatus, string> = {
   ANNULE: "text-status-cancelled bg-status-cancelled-bg",
   A_VERIFIER: "text-status-cancelled bg-status-cancelled-bg",
   A_EXPEDIER: "text-status-shipped bg-status-shipped-bg",
-AU_DEPOT_LIVREUR: "text-status-shipped bg-status-shipped-bg",
+  AU_DEPOT_LIVREUR: "text-status-shipped bg-status-shipped-bg",
+  ECHANGE: "text-purple-600 bg-purple-50",
+  IMPRIME: "text-status-shipped bg-status-shipped-bg",
+  EMBALLE: "text-status-shipped bg-status-shipped-bg",
+  ARCHIVE: "text-muted bg-surface-sunken",
 };
 
 const FINANCIAL_STATUS_STYLE: Record<FinancialStatus, string> = {

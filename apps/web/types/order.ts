@@ -16,11 +16,14 @@ export type FulfillmentStatus =
   | "RESTOCKED"
   | "CANCELLED";
 
-export type OrderStatus =
+  export type OrderStatus =
   | "NOUVEAU"
   | "CONFIRMATION_EN_COURS"
   | "CONFIRME"
+  | "ECHANGE"
   | "EN_PREPARATION"
+  | "IMPRIME"
+  | "EMBALLE"
   | "A_EXPEDIER"
   | "AU_DEPOT_LIVREUR"
   | "EN_COURS_DE_LIVRAISON"
@@ -30,27 +33,32 @@ export type OrderStatus =
   | "RETOUR_DEPOT"
   | "RETOUR_RECU"
   | "ANNULE"
-  | "A_VERIFIER";
+  | "A_VERIFIER"
+  | "ARCHIVE";
 
   export type IntegrationStatus = "CONNECTED" | "DISCONNECTED" | "ERROR";
   export type IntegrationType = "SHOPIFY" | "CUSTOM" | "MARKETPLACE" | "DELIVERY" | "GENERIC_API" | "GOOGLE_SHEETS";
 
-export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  NOUVEAU: "Nouveau",
-  CONFIRMATION_EN_COURS: "Confirmation en cours",
-  CONFIRME: "Confirmé",
-  EN_PREPARATION: "En préparation",
-  A_EXPEDIER: "À expédier",
-  AU_DEPOT_LIVREUR: "Au dépôt livreur",
-  EN_COURS_DE_LIVRAISON: "En cours de livraison",
-  LIVRE: "Livré",
-  PAYE: "Payé",
-  RETOUR: "Retour",
-  RETOUR_DEPOT: "Retour dépôt",
-  RETOUR_RECU: "Retour reçu",
-  ANNULE: "Annulé",
-  A_VERIFIER: "À vérifier",
-};
+  export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+    NOUVEAU: "Nouveau",
+    CONFIRMATION_EN_COURS: "Confirmation en cours",
+    CONFIRME: "Confirmé",
+    ECHANGE: "Échange",
+    EN_PREPARATION: "En préparation",
+    IMPRIME: "Imprimé",
+    EMBALLE: "Emballé",
+    A_EXPEDIER: "À expédier",
+    AU_DEPOT_LIVREUR: "Au dépôt livreur",
+    EN_COURS_DE_LIVRAISON: "En cours de livraison",
+    LIVRE: "Livré",
+    PAYE: "Payé",
+    RETOUR: "Retour",
+    RETOUR_DEPOT: "Retour dépôt",
+    RETOUR_RECU: "Retour reçu",
+    ANNULE: "Annulé",
+    A_VERIFIER: "À vérifier",
+    ARCHIVE: "Archivé",
+  };
 
 export interface CallAttempt {
   id: string;

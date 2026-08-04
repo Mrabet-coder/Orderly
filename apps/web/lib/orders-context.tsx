@@ -39,6 +39,15 @@ function deriveStatuses(newStatus: OrderStatus) {
       case "A_EXPEDIER":
 case "AU_DEPOT_LIVREUR":
   return { fulfillmentStatus: "PARTIAL" as const };
+  case "IMPRIME":
+case "EMBALLE":
+case "A_EXPEDIER":
+case "AU_DEPOT_LIVREUR":
+  return { fulfillmentStatus: "PARTIAL" as const };
+case "ECHANGE":
+  return { fulfillmentStatus: "UNFULFILLED" as const };
+case "ARCHIVE":
+  return { fulfillmentStatus: "CANCELLED" as const };
   }
 }
 

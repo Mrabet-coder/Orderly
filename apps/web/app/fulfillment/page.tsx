@@ -40,6 +40,8 @@ const DELIVERY_STATUSES: { status: OrderStatus; label: string; color: string }[]
   { status: "RETOUR_DEPOT", label: "Retour dépôt", color: "text-status-refunded" },
   { status: "RETOUR_RECU", label: "Retour reçu", color: "text-status-refunded" },
   { status: "ANNULE", label: "Annulé", color: "text-status-cancelled" },
+  { status: "IMPRIME", label: "Imprimé", color: "text-status-shipped" },
+{ status: "EMBALLE", label: "Emballé", color: "text-status-shipped" },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -54,6 +56,9 @@ const STATUS_COLORS: Record<string, string> = {
   RETOUR_DEPOT: "bg-status-refunded-bg text-status-refunded",
   RETOUR_RECU: "bg-status-refunded-bg text-status-refunded",
   ANNULE: "bg-status-cancelled-bg text-status-cancelled",
+  ECHANGE: "bg-purple-50 text-purple-600",
+  IMPRIME: "bg-status-shipped-bg text-status-shipped",
+  EMBALLE: "bg-status-shipped-bg text-status-shipped",
 };
 
 interface ImportResult {
@@ -310,7 +315,7 @@ const PAGE_SIZE = 25;
 const DELIVERY_STATUS_KEYS: OrderStatus[] = [
   "CONFIRME", "EN_PREPARATION", "A_EXPEDIER", "AU_DEPOT_LIVREUR",
   "EN_COURS_DE_LIVRAISON", "LIVRE", "PAYE", "RETOUR", "RETOUR_DEPOT",
-  "RETOUR_RECU", "ANNULE",
+  "RETOUR_RECU", "ANNULE","IMPRIME", "EMBALLE",
 ];
 
 function FulfillmentContent() {

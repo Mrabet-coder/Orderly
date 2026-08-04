@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils";
 const QUICK_ACTIONS: { status: OrderStatus; label: string; color?: string }[] = [
   { status: "CONFIRMATION_EN_COURS", label: "Confirmation en cours" },
   { status: "CONFIRME", label: "Confirmé" },
+  { status: "ECHANGE", label: "Échange" },
   { status: "EN_PREPARATION", label: "En préparation" },
+  { status: "IMPRIME", label: "Imprimé" },
+  { status: "EMBALLE", label: "Emballé" },
   { status: "A_EXPEDIER", label: "À expédier" },
   { status: "AU_DEPOT_LIVREUR", label: "Au dépôt livreur" },
   { status: "EN_COURS_DE_LIVRAISON", label: "En cours de livraison" },
@@ -19,6 +22,7 @@ const QUICK_ACTIONS: { status: OrderStatus; label: string; color?: string }[] = 
   { status: "RETOUR_RECU", label: "Retour reçu" },
   { status: "A_VERIFIER", label: "À vérifier", color: "text-status-cancelled" },
   { status: "ANNULE", label: "Annulé", color: "text-status-cancelled" },
+  { status: "ARCHIVE", label: "Archiver", color: "text-muted" },
 ];
 
 export function OrderActionsMenu({

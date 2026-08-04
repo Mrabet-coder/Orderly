@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Search, ChevronLeft, ChevronRight, Package,
-  CheckCircle2, Clock, X, Printer,
+  CheckCircle2, X, Printer, Archive, Plus, Truck,
 } from "lucide-react";
 import { Order, OrderStatus } from "@/types/order";
 
@@ -34,33 +34,93 @@ function openBordereau(orderId: string) {
   window.open(`${API}/orders/${orderId}/bordereau`, "_blank");
 }
 
-function PrepareModal({
-  order,
+async function apiChangeStatus(orderId: string, status: OrderStatus) {
+  await fetch(`${API}/orders/${orderId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status }),
+  });
+}
+
+const PAGE_SIZE = 25;
+
+const PREP_STATUS_KEYS: OrderStatus[] = [
+  "CONFIRME", "ECHANGE", "EN_PREPARATION", "IMPRIME", "EMBALLE", "A_EXPEDIER",
+];
+
+const STATUS_STYLE: Record<string, string> = {
+  CONFIRME: "bg-status-new-bg text-status-new",
+  ECHANGE: "bg-purple-50 text-purple-600",
+  EN_PREPARATION: "bg-status-processing-bg text-status-processing",
+  IMPRIME: "bg-status-shipped-bg text-status-shipped",
+  EMBALLE: "bg-status-shipped-bg text-status-shipped",
+  A_EXPEDIER: "bg-status-shipped-bg text-status-shipped",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  CONFIRME: "Confirmé",
+  ECHANGE: "Échange",
+  EN_PREPARATION: "En préparation",
+  IMPRIME: "Imprimé",
+  EMBALLE: "Emballé",
+  A_EXPEDIER: "À expédier",
+};
+
+function CreateOrderModal({
+  storeId,
   onClose,
-  onDone,
+  onCreated,
 }: {
-  order: Order;
+  storeId: string;
   onClose: () => void;
-  onDone: () => void;
+  onCreated: () => void;
 }) {
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [note, setNote] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [city, setCity] = useState("");
+  const [address, setAddress] = useState("");
+  const [products, setProducts] = useState([{ title: "", quantity: 1, price: 0 }]);
   const [loading, setLoading] = useState(false);
 
-  const allChecked = order.lineItems.every((li) => checked[li.id]);
+  const total = products.reduce((s, p) => s + p.price * p.quantity, 0);
 
-  async function handleReady() {
+  function updateProduct(idx: number, field: string, value: any) {
+    setProducts((prev) => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  }
+
+  function addProduct() {
+    setProducts((prev) => [...prev, { title: "", quantity: 1, price: 0 }]);
+  }
+
+  function removeProduct(idx: number) {
+    setProducts((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function create() {
     setLoading(true);
     try {
-      await fetch(`${API}/orders/${order.id}/status`, {
-        method: "PATCH",
+      await fetch(`${API}/orders/manual`, {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${getToken()}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ status: "A_EXPEDIER" }),
+        body: JSON.stringify({
+          storeId,
+          customerName: name,
+          customerPhone: phone,
+          shippingAddress: { city, address1: address },
+          currency: "TND",
+          subtotal: total,
+          total,
+          source: "manual",
+          lineItems: products.filter((p) => p.title.trim()),
+        }),
       });
-      onDone();
+      onCreated();
       onClose();
     } catch (e) {
       console.error(e);
@@ -73,124 +133,94 @@ function PrepareModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
       <div className="w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
-            <h2 className="text-sm font-semibold">Préparer — {order.orderNumber}</h2>
-            <p className="text-xs text-muted">{order.customerName} · {order.customerPhone}</p>
-          </div>
+          <h2 className="text-sm font-semibold">Créer une commande</h2>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-surface-sunken">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Client info */}
-          <div className="rounded-lg border border-border p-3.5 space-y-1.5 text-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted">Client</p>
-            <p className="font-medium">{order.customerName}</p>
-            <p className="text-muted font-mono text-xs">{order.customerPhone}</p>
-            {order.shippingAddress && (
-              <p className="text-xs text-muted">
-                {(order.shippingAddress as any).address1}, {(order.shippingAddress as any).city}
-              </p>
-            )}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Nom client</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet" autoFocus />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Téléphone</label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+216 XX XXX XXX" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Ville</label>
+              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Tunis" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Adresse</label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rue..." />
+            </div>
           </div>
 
-          {/* Items checklist */}
-          <div className="rounded-lg border border-border divide-y divide-border">
-            <div className="px-3.5 py-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                Articles à préparer ({order.lineItems.length})
-              </p>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-muted">Produits</label>
+              <button onClick={addProduct} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                <Plus className="h-3 w-3" /> Ajouter
+              </button>
             </div>
-            {order.lineItems.map((li) => (
-              <div
-                key={li.id}
-                onClick={() => setChecked((prev) => ({ ...prev, [li.id]: !prev[li.id] }))}
-                className={cn(
-                  "flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-colors",
-                  checked[li.id] ? "bg-status-delivered-bg/30" : "hover:bg-surface-sunken"
-                )}
-              >
-                <div className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors",
-                  checked[li.id]
-                    ? "border-status-delivered bg-status-delivered"
-                    : "border-border"
-                )}>
-                  {checked[li.id] && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+            <div className="space-y-2">
+              {products.map((p, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-lg border border-border p-2">
+                  <Input
+                    value={p.title}
+                    onChange={(e) => updateProduct(idx, "title", e.target.value)}
+                    placeholder="Nom produit"
+                    className="flex-1 h-8 text-xs"
+                  />
+                  <Input
+                    type="number"
+                    value={p.quantity}
+                    onChange={(e) => updateProduct(idx, "quantity", parseInt(e.target.value) || 1)}
+                    min={1}
+                    className="w-16 h-8 text-xs"
+                  />
+                  <Input
+                    type="number"
+                    value={p.price}
+                    onChange={(e) => updateProduct(idx, "price", parseFloat(e.target.value) || 0)}
+                    min={0}
+                    step="0.001"
+                    className="w-24 h-8 text-xs"
+                  />
+                  {products.length > 1 && (
+                    <button onClick={() => removeProduct(idx)} className="text-muted hover:text-status-cancelled">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className={cn(
-                    "text-sm font-medium transition-colors",
-                    checked[li.id] && "line-through text-muted"
-                  )}>
-                    {li.title}
-                    {li.variantTitle && (
-                      <span className="ml-1 text-xs text-muted">— {li.variantTitle}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted font-mono">
-                    {li.sku} · Qté {li.quantity}
-                  </p>
-                </div>
-                <p className="shrink-0 font-mono text-sm font-medium">
-                  {formatMoney(li.price * li.quantity, order.currency)}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          {/* Total */}
-          <div className="rounded-lg border border-border px-3.5 py-3 flex justify-between text-sm font-semibold">
-            <span>Montant à encaisser</span>
-            <span className="font-mono text-status-delivered">
-              {formatMoney(order.total, order.currency)}
-            </span>
+          <div className="flex justify-between items-center rounded-lg bg-surface-sunken px-3 py-2">
+            <span className="text-xs font-medium text-muted">Total</span>
+            <span className="font-mono text-sm font-bold">{total.toFixed(3)} TND</span>
           </div>
-
-          {/* Note */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted">Note préparateur (optionnel)</label>
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Remarques sur la préparation..."
-            />
-          </div>
-
-          {!allChecked && (
-            <p className="text-xs text-status-processing text-center">
-              ⚠️ Cochez tous les articles avant de valider
-            </p>
-          )}
         </div>
 
         <div className="flex gap-2 border-t border-border px-5 py-4">
           <Button variant="secondary" className="flex-1" onClick={onClose}>Annuler</Button>
           <Button
-            variant="secondary"
-            onClick={() => openBordereau(order.id)}
-          >
-            <Printer className="h-3.5 w-3.5" />
-            Bordereau
-          </Button>
-          <Button
             className="flex-1"
-            disabled={!allChecked || loading}
-            onClick={handleReady}
+            disabled={loading || !name.trim() || !phone.trim() || !products.some((p) => p.title.trim())}
+            onClick={create}
           >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {loading ? "Validation..." : "Valider → À expédier"}
+            <Plus className="h-3.5 w-3.5" />
+            {loading ? "Création..." : "Créer la commande"}
           </Button>
         </div>
       </div>
     </div>
   );
 }
-
-const PAGE_SIZE = 25;
 
 function PreparationContent() {
   const { canAccessStore } = useAuth();
@@ -199,13 +229,13 @@ function PreparationContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
-  const [prepareOrder, setPrepareOrder] = useState<Order | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState<"all" | "CONFIRME" | "EN_PREPARATION" | "A_EXPEDIER">("all");
-  const [bulkLoading, setBulkLoading] = useState(false);
+  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+  const [showCreate, setShowCreate] = useState(false);
 
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
+  const activeStore = accessibleStores[0];
 
   useEffect(() => {
     if (stores.length > 0 && selectedStoreIds.length === 0) {
@@ -222,9 +252,7 @@ function PreparationContent() {
       });
       const data = await res.json();
       const all: Order[] = data.orders ?? [];
-      setOrders(all.filter((o) =>
-        ["CONFIRME", "EN_PREPARATION", "A_EXPEDIER"].includes(o.orderStatus)
-      ));
+      setOrders(all.filter((o) => PREP_STATUS_KEYS.includes(o.orderStatus)));
     } catch {
       setOrders([]);
     } finally {
@@ -235,6 +263,27 @@ function PreparationContent() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Direct status change — no popup
+  async function changeStatus(orderId: string, status: OrderStatus) {
+    setOrders((prev) =>
+      prev.map((o) => o.id === orderId ? { ...o, orderStatus: status } : o)
+    );
+    await apiChangeStatus(orderId, status);
+    // Remove from list if archived
+    if (status === "ARCHIVE" || status === "AU_DEPOT_LIVREUR") {
+      setOrders((prev) => prev.filter((o) => o.id !== orderId || PREP_STATUS_KEYS.includes(status)));
+      fetchOrders();
+    }
+  }
+
+  // Print → auto IMPRIME
+  async function handlePrint(order: Order) {
+    openBordereau(order.id);
+    if (order.orderStatus === "EN_PREPARATION" || order.orderStatus === "CONFIRME" || order.orderStatus === "ECHANGE") {
+      await changeStatus(order.id, "IMPRIME");
+    }
+  }
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -256,11 +305,20 @@ function PreparationContent() {
     });
   }
 
-  function printBulk() {
+  // Bulk print → all become IMPRIME
+  async function printBulk() {
     const ids = Array.from(selectedIds);
-    ids.forEach((id) => {
-      setTimeout(() => openBordereau(id), 300);
+    ids.forEach((id, i) => {
+      setTimeout(() => openBordereau(id), i * 300);
     });
+    for (const id of ids) {
+      const order = orders.find((o) => o.id === id);
+      if (order && ["EN_PREPARATION", "CONFIRME", "ECHANGE"].includes(order.orderStatus)) {
+        await apiChangeStatus(id, "IMPRIME");
+      }
+    }
+    fetchOrders();
+    setSelectedIds(new Set());
   }
 
   const filtered = orders.filter((o) => {
@@ -277,21 +335,10 @@ function PreparationContent() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageOrders = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const confirmeCount = orders.filter((o) => o.orderStatus === "CONFIRME").length;
-  const prepCount = orders.filter((o) => o.orderStatus === "EN_PREPARATION").length;
-  const aExpedierCount = orders.filter((o) => o.orderStatus === "A_EXPEDIER").length;
-
-  const STATUS_STYLE: Record<string, string> = {
-    CONFIRME: "bg-status-new-bg text-status-new",
-    EN_PREPARATION: "bg-status-processing-bg text-status-processing",
-    A_EXPEDIER: "bg-status-shipped-bg text-status-shipped",
-  };
-
-  const STATUS_LABEL: Record<string, string> = {
-    CONFIRME: "Confirmé",
-    EN_PREPARATION: "En préparation",
-    A_EXPEDIER: "À expédier",
-  };
+  const counts: Record<string, number> = {};
+  orders.forEach((o) => {
+    counts[o.orderStatus] = (counts[o.orderStatus] ?? 0) + 1;
+  });
 
   return (
     <div className="flex h-screen bg-background">
@@ -311,29 +358,41 @@ function PreparationContent() {
                 Imprimer {selectedIds.size} bordereau{selectedIds.size > 1 ? "x" : ""}
               </Button>
             )}
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Créer commande
+            </Button>
             <p className="text-xs text-muted">{orders.length} commandes</p>
           </div>
         </header>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 border-b border-border bg-surface p-4">
-          <div className="rounded-lg bg-status-new-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-new">À préparer</p>
-            <p className="mt-1 text-2xl font-bold text-status-new">{confirmeCount}</p>
+        <div className="grid grid-cols-5 gap-3 border-b border-border bg-surface p-4">
+          <div className="rounded-lg bg-status-new-bg px-3 py-2.5">
+            <p className="text-[11px] font-medium text-status-new">À préparer</p>
+            <p className="mt-0.5 text-xl font-bold text-status-new">{(counts["CONFIRME"] ?? 0) + (counts["ECHANGE"] ?? 0)}</p>
           </div>
-          <div className="rounded-lg bg-status-processing-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-processing">En préparation</p>
-            <p className="mt-1 text-2xl font-bold text-status-processing">{prepCount}</p>
+          <div className="rounded-lg bg-status-processing-bg px-3 py-2.5">
+            <p className="text-[11px] font-medium text-status-processing">En préparation</p>
+            <p className="mt-0.5 text-xl font-bold text-status-processing">{counts["EN_PREPARATION"] ?? 0}</p>
           </div>
-          <div className="rounded-lg bg-status-shipped-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-shipped">À expédier</p>
-            <p className="mt-1 text-2xl font-bold text-status-shipped">{aExpedierCount}</p>
+          <div className="rounded-lg bg-status-shipped-bg px-3 py-2.5">
+            <p className="text-[11px] font-medium text-status-shipped">Imprimés</p>
+            <p className="mt-0.5 text-xl font-bold text-status-shipped">{counts["IMPRIME"] ?? 0}</p>
+          </div>
+          <div className="rounded-lg bg-status-shipped-bg px-3 py-2.5">
+            <p className="text-[11px] font-medium text-status-shipped">Emballés</p>
+            <p className="mt-0.5 text-xl font-bold text-status-shipped">{counts["EMBALLE"] ?? 0}</p>
+          </div>
+          <div className="rounded-lg bg-status-shipped-bg px-3 py-2.5">
+            <p className="text-[11px] font-medium text-status-shipped">À expédier</p>
+            <p className="mt-0.5 text-xl font-bold text-status-shipped">{counts["A_EXPEDIER"] ?? 0}</p>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-3 border-b border-border bg-surface px-5 py-3">
-          <div className="relative w-64">
+        <div className="flex items-center gap-3 border-b border-border bg-surface px-5 py-3 overflow-x-auto">
+          <div className="relative w-64 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
             <Input
               value={search}
@@ -345,15 +404,17 @@ function PreparationContent() {
           <div className="flex gap-1">
             {[
               { key: "all", label: "Tous", count: orders.length },
-              { key: "CONFIRME", label: "À préparer", count: confirmeCount },
-              { key: "EN_PREPARATION", label: "En cours", count: prepCount },
-              { key: "A_EXPEDIER", label: "À expédier", count: aExpedierCount },
+              { key: "CONFIRME", label: "Confirmés", count: counts["CONFIRME"] ?? 0 },
+              { key: "ECHANGE", label: "Échanges", count: counts["ECHANGE"] ?? 0 },
+              { key: "EN_PREPARATION", label: "En préparation", count: counts["EN_PREPARATION"] ?? 0 },
+              { key: "IMPRIME", label: "Imprimés", count: counts["IMPRIME"] ?? 0 },
+              { key: "EMBALLE", label: "Emballés", count: counts["EMBALLE"] ?? 0 },
             ].map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => { setFilter(tab.key as any); setPage(1); }}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                   filter === tab.key ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-sunken"
                 )}
               >
@@ -393,8 +454,9 @@ function PreparationContent() {
                   <th className="px-4 py-2.5">Téléphone</th>
                   <th className="px-4 py-2.5">Articles</th>
                   <th className="px-4 py-2.5">Montant</th>
+                  <th className="px-4 py-2.5">Livreur</th>
                   <th className="px-4 py-2.5">Statut</th>
-                  <th className="px-4 py-2.5">Action</th>
+                  <th className="px-4 py-2.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -403,7 +465,8 @@ function PreparationContent() {
                     key={order.id}
                     className={cn(
                       "border-b border-border transition-colors hover:bg-surface-sunken",
-                      selectedIds.has(order.id) && "bg-primary-soft/30"
+                      selectedIds.has(order.id) && "bg-primary-soft/30",
+                      order.orderStatus === "ECHANGE" && "bg-purple-50/30"
                     )}
                   >
                     <td className="px-4 py-3">
@@ -421,14 +484,14 @@ function PreparationContent() {
                       {formatDate(order.sourceCreatedAt)}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium truncate max-w-[150px]">{order.customerName ?? "—"}</p>
+                      <p className="font-medium truncate max-w-[130px]">{order.customerName ?? "—"}</p>
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs">{order.customerPhone ?? "—"}</span>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted">
                       {order.lineItems?.map((li) => (
-                        <div key={li.id} className="truncate max-w-[200px]">
+                        <div key={li.id} className="truncate max-w-[180px]">
                           {li.title} × {li.quantity}
                         </div>
                       ))}
@@ -436,44 +499,76 @@ function PreparationContent() {
                     <td className="px-4 py-3 font-mono text-sm font-medium">
                       {formatMoney(order.total, order.currency)}
                     </td>
+                    <td className="px-4 py-3 text-xs text-muted">
+                      {order.deliveryCompany ?? "—"}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={cn(
-                        "rounded px-2 py-1 text-xs font-medium",
+                        "rounded px-2 py-1 text-xs font-medium whitespace-nowrap",
                         STATUS_STYLE[order.orderStatus] ?? "bg-surface-sunken text-muted"
                       )}>
                         {STATUS_LABEL[order.orderStatus] ?? order.orderStatus}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {order.orderStatus === "CONFIRME" && (
-                          <Button size="sm" onClick={() => setPrepareOrder(order)}>
+                      <div className="flex items-center gap-1.5">
+                        {/* CONFIRME / ECHANGE → Préparer (direct, no popup) */}
+                        {(order.orderStatus === "CONFIRME" || order.orderStatus === "ECHANGE") && (
+                          <Button size="sm" onClick={() => changeStatus(order.id, "EN_PREPARATION")}>
                             <Package className="h-3.5 w-3.5" />
                             Préparer
                           </Button>
                         )}
+
+                        {/* EN_PREPARATION → Imprimer (auto IMPRIME) */}
                         {order.orderStatus === "EN_PREPARATION" && (
-                          <Button size="sm" variant="secondary" onClick={() => setPrepareOrder(order)}>
-                            <Clock className="h-3.5 w-3.5" />
-                            Continuer
+                          <Button size="sm" onClick={() => handlePrint(order)}>
+                            <Printer className="h-3.5 w-3.5" />
+                            Imprimer
                           </Button>
                         )}
-                        {order.orderStatus === "A_EXPEDIER" && (
+
+                        {/* IMPRIME → Emballé OU direct Au dépôt */}
+                        {order.orderStatus === "IMPRIME" && (
                           <>
-                            <span className="text-xs text-status-shipped font-medium flex items-center gap-1">
+                            <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "EMBALLE")}>
                               <CheckCircle2 className="h-3.5 w-3.5" />
-                              Prêt
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => openBordereau(order.id)}
-                            >
+                              Emballé
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
+                              <Truck className="h-3.5 w-3.5" />
+                              Au dépôt
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openBordereau(order.id)}>
                               <Printer className="h-3.5 w-3.5" />
-                              Bordereau
                             </Button>
                           </>
                         )}
+
+                        {/* EMBALLE → Au dépôt livreur */}
+                        {order.orderStatus === "EMBALLE" && (
+                          <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
+                            <Truck className="h-3.5 w-3.5" />
+                            Au dépôt
+                          </Button>
+                        )}
+
+                        {/* A_EXPEDIER (legacy) → Au dépôt */}
+                        {order.orderStatus === "A_EXPEDIER" && (
+                          <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
+                            <Truck className="h-3.5 w-3.5" />
+                            Au dépôt
+                          </Button>
+                        )}
+
+                        {/* Archive — always available */}
+                        <button
+                          onClick={() => changeStatus(order.id, "ARCHIVE")}
+                          className="rounded-md p-1.5 text-muted hover:bg-surface-sunken hover:text-foreground"
+                          title="Archiver"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -508,14 +603,11 @@ function PreparationContent() {
         </footer>
       </div>
 
-      {prepareOrder && (
-        <PrepareModal
-          order={prepareOrder}
-          onClose={() => setPrepareOrder(null)}
-          onDone={() => {
-            fetchOrders();
-            setPrepareOrder(null);
-          }}
+      {showCreate && activeStore && (
+        <CreateOrderModal
+          storeId={activeStore.id}
+          onClose={() => setShowCreate(false)}
+          onCreated={fetchOrders}
         />
       )}
     </div>

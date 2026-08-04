@@ -110,7 +110,10 @@ export class OrdersController {
   ) {
     return this.orders.bulkUpdateStatus(body.orderIds, body.status, req.user.id);
   }
-
+  @Get(':id/events')
+  getEvents(@Param('id') id: string) {
+    return this.orders.getOrderEvents(id);
+  }
   @Post(':id/refund')
   refund(
     @Param('id') id: string,

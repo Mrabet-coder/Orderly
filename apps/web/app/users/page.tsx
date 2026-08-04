@@ -44,6 +44,7 @@ const ALL_PERMISSIONS = [
   { key: "users", label: "Utilisateurs", description: "Gérer les utilisateurs" },
   { key: "integrations", label: "Intégrations", description: "Gérer les intégrations" },
   { key: "settings", label: "Paramètres", description: "Paramètres du compte" },
+  { key: "archives", label: "Archives", description: "Voir et restaurer les commandes archivées" },
 ];
 
 const ROLE_LABELS = {

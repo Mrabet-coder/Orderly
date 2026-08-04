@@ -136,7 +136,26 @@ export class OrdersService {
 
     return order;
   }
-
+  async getOrderEvents(orderId: string) {
+    const events = await this.prisma.orderEvent.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+    });
+  
+    // Resolve actor names
+    const actorIds = [...new Set(events.map((e) => e.actor).filter(Boolean))] as string[];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: actorIds } },
+      select: { id: true, name: true, email: true },
+    });
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+  
+    return events.map((e) => ({
+      ...e,
+      actorName: e.actor ? (userMap[e.actor]?.name ?? e.actor) : 'Système',
+      actorEmail: e.actor ? userMap[e.actor]?.email : null,
+    }));
+  }
   async updateOrder(
     orderId: string,
     data: any,

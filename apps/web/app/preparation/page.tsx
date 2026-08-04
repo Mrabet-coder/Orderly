@@ -1,4 +1,11 @@
 "use client";
+import {
+  PeriodFilter,
+  StatCard,
+  getPeriodRange,
+  isInPeriod,
+  type Period,
+} from "@/components/stats/period-filter";
 
 import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -303,6 +310,9 @@ function PreparationContent() {
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [archiveOrder, setArchiveOrder] = useState<Order | null>(null);
+  const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
+  const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
+  const [productFilter, setProductFilter] = useState<string>("all");
 
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
   const activeStore = accessibleStores[0];
@@ -390,6 +400,9 @@ function PreparationContent() {
 
   const filtered = orders.filter((o) => {
     if (!selectedStoreIds.includes(o.storeId)) return false;
+    if (!isInPeriod(o.sourceCreatedAt, period)) return false;
+    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
+    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
     if (filter !== "all" && o.orderStatus !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -402,10 +415,38 @@ function PreparationContent() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageOrders = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Orders matching stats filters
+  const statsOrders = orders.filter((o) => {
+    if (!selectedStoreIds.includes(o.storeId)) return false;
+    if (!isInPeriod(o.sourceCreatedAt, period)) return false;
+    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
+    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
+    return true;
+  });
+
   const counts: Record<string, number> = {};
-  orders.forEach((o) => {
+  statsOrders.forEach((o) => {
     counts[o.orderStatus] = (counts[o.orderStatus] ?? 0) + 1;
   });
+
+  const statsTotal = statsOrders.length;
+  const aPreparerCount = (counts["A_PREPARER"] ?? 0) + (counts["ECHANGE"] ?? 0);
+  const enCoursCount = counts["EN_PREPARATION"] ?? 0;
+  const emballeCount = counts["EMBALLE"] ?? 0;
+  const traiteesCount = enCoursCount + emballeCount;
+
+  const totalValue = statsOrders.reduce((s, o) => s + Number(o.total), 0);
+  const emballeValue = statsOrders
+    .filter((o) => o.orderStatus === "EMBALLE")
+    .reduce((s, o) => s + Number(o.total), 0);
+
+  const deliveryCompanies = Array.from(
+    new Set(orders.map((o) => o.deliveryCompany).filter(Boolean))
+  ) as string[];
+
+  const productNames = Array.from(
+    new Set(orders.flatMap((o) => o.lineItems?.map((li) => li.title) ?? []))
+  ).slice(0, 50);
 
   return (
     <div className="flex h-screen bg-background">
@@ -433,23 +474,50 @@ function PreparationContent() {
           </div>
         </header>
 
+       {/* Stats filters */}
+       <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface px-5 py-3">
+          <PeriodFilter period={period} onChange={setPeriod} />
+
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              value={deliveryFilter}
+              onChange={(e) => setDeliveryFilter(e.target.value)}
+              className="h-8 rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="all">Tous les livreurs</option>
+              {deliveryCompanies.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="h-8 max-w-[200px] rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="all">Tous les produits</option>
+              {productNames.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-3 border-b border-border bg-surface p-4">
-          <div className="rounded-lg bg-status-new-bg px-3 py-2.5">
-            <p className="text-[11px] font-medium text-status-new">À préparer</p>
-            <p className="mt-0.5 text-xl font-bold text-status-new">{counts["A_PREPARER"] ?? 0}</p>
-          </div>
-          <div className="rounded-lg bg-purple-50 px-3 py-2.5">
-            <p className="text-[11px] font-medium text-purple-600">Échanges</p>
-            <p className="mt-0.5 text-xl font-bold text-purple-600">{counts["ECHANGE"] ?? 0}</p>
-          </div>
-          <div className="rounded-lg bg-status-processing-bg px-3 py-2.5">
-            <p className="text-[11px] font-medium text-status-processing">En préparation</p>
-            <p className="mt-0.5 text-xl font-bold text-status-processing">{counts["EN_PREPARATION"] ?? 0}</p>
-          </div>
-          <div className="rounded-lg bg-status-shipped-bg px-3 py-2.5">
-            <p className="text-[11px] font-medium text-status-shipped">Emballés</p>
-            <p className="mt-0.5 text-xl font-bold text-status-shipped">{counts["EMBALLE"] ?? 0}</p>
+        <div className="grid grid-cols-6 gap-3 border-b border-border bg-surface p-4">
+          <StatCard label="Total reçues" value={statsTotal} color="gray" />
+          <StatCard label="À préparer" value={aPreparerCount} total={statsTotal} color="blue" />
+          <StatCard label="En préparation" value={enCoursCount} total={statsTotal} color="orange" />
+          <StatCard label="Emballées" value={emballeCount} total={statsTotal} color="green" />
+          <StatCard label="Traitées" value={traiteesCount} total={statsTotal} color="purple" />
+          <div className="rounded-lg bg-primary-soft px-4 py-3">
+            <p className="text-[11px] font-medium text-primary">Valeur emballée</p>
+            <p className="mt-1 text-2xl font-bold text-primary font-mono">
+              {emballeValue.toLocaleString("fr-FR", { maximumFractionDigits: 0 })}
+            </p>
+            <p className="mt-1 text-[10px] text-primary/70">
+              sur {totalValue.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} TND
+            </p>
           </div>
         </div>
 

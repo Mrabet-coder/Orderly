@@ -10,9 +10,9 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Phone, Search, X, ChevronLeft, ChevronRight,
-  Plus, Trash2, Edit2, Check, Building2, Calendar,
+  Plus, Trash2, Edit2, Check, Building2, Calendar, Archive, Truck,
 } from "lucide-react";
-import { Order, OrderStatus, CallAttempt, ORDER_STATUS_LABELS } from "@/types/order";
+import { Order, OrderStatus, CallAttempt } from "@/types/order";
 import { OrderStatusBadge } from "@/components/orders/status-badge";
 import { TagBadge, TagPicker } from "@/components/orders/tag-picker";
 
@@ -90,6 +90,213 @@ function CallStatusBadge({ attempts }: { attempts: CallAttempt[] }) {
     </span>
   );
   return <span className="text-xs text-muted-light">—</span>;
+}
+
+function CreateOrderModal({
+  storeId,
+  onClose,
+  onCreated,
+}: {
+  storeId: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [city, setCity] = useState("");
+  const [address, setAddress] = useState("");
+  const [products, setProducts] = useState([{ title: "", quantity: 1, price: 0 }]);
+  const [loading, setLoading] = useState(false);
+
+  const total = products.reduce((s, p) => s + p.price * p.quantity, 0);
+
+  function updateProduct(idx: number, field: string, value: any) {
+    setProducts((prev) => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  }
+
+  function addProduct() {
+    setProducts((prev) => [...prev, { title: "", quantity: 1, price: 0 }]);
+  }
+
+  function removeProduct(idx: number) {
+    setProducts((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function create() {
+    setLoading(true);
+    try {
+      await fetch(`${API}/orders/manual`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          storeId,
+          customerName: name,
+          customerPhone: phone,
+          customerPhone2: phone2 || null,
+          shippingAddress: { city, address1: address },
+          currency: "TND",
+          subtotal: total,
+          total,
+          source: "manual",
+          orderStatus: "NOUVEAU",
+          lineItems: products.filter((p) => p.title.trim()),
+        }),
+      });
+      onCreated();
+      onClose();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-sm font-semibold">Créer une commande</h2>
+            <p className="text-xs text-muted">La commande sera à confirmer par téléphone</p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-surface-sunken">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs font-medium text-muted">Nom client</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet" autoFocus />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Téléphone 1</label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+216 XX XXX XXX" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Téléphone 2</label>
+              <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="Optionnel" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Ville</label>
+              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Tunis" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Adresse</label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rue..." />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-muted">Produits</label>
+              <button onClick={addProduct} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                <Plus className="h-3 w-3" /> Ajouter
+              </button>
+            </div>
+            <div className="space-y-2">
+              {products.map((p, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-lg border border-border p-2">
+                  <Input
+                    value={p.title}
+                    onChange={(e) => updateProduct(idx, "title", e.target.value)}
+                    placeholder="Nom produit"
+                    className="flex-1 h-8 text-xs"
+                  />
+                  <Input
+                    type="number"
+                    value={p.quantity}
+                    onChange={(e) => updateProduct(idx, "quantity", parseInt(e.target.value) || 1)}
+                    min={1}
+                    className="w-16 h-8 text-xs"
+                  />
+                  <Input
+                    type="number"
+                    value={p.price}
+                    onChange={(e) => updateProduct(idx, "price", parseFloat(e.target.value) || 0)}
+                    min={0}
+                    step="0.001"
+                    className="w-24 h-8 text-xs"
+                  />
+                  {products.length > 1 && (
+                    <button onClick={() => removeProduct(idx)} className="text-muted hover:text-status-cancelled">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center rounded-lg bg-surface-sunken px-3 py-2">
+            <span className="text-xs font-medium text-muted">Total</span>
+            <span className="font-mono text-sm font-bold">{total.toFixed(3)} TND</span>
+          </div>
+        </div>
+
+        <div className="flex gap-2 border-t border-border px-5 py-4">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>Annuler</Button>
+          <Button
+            className="flex-1"
+            disabled={loading || !name.trim() || !phone.trim() || !products.some((p) => p.title.trim())}
+            onClick={create}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {loading ? "Création..." : "Créer la commande"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArchiveModal({
+  order,
+  onClose,
+  onConfirm,
+}: {
+  order: Order;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-surface shadow-2xl">
+        <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-status-cancelled-bg">
+            <Archive className="h-4 w-4 text-status-cancelled" />
+          </div>
+          <h2 className="text-sm font-semibold">Archiver la commande ?</h2>
+        </div>
+
+        <div className="space-y-3 p-5">
+          <div className="rounded-lg bg-surface-sunken px-3 py-2.5">
+            <p className="font-mono text-sm font-semibold">{order.orderNumber}</p>
+            <p className="mt-0.5 text-xs text-muted">
+              {order.customerName ?? "—"} · {formatMoney(order.total, order.currency)}
+            </p>
+          </div>
+          <p className="text-xs text-muted leading-relaxed">
+            La commande sera déplacée vers les archives. Elle n'est pas supprimée
+            et pourra être récupérée à tout moment.
+          </p>
+        </div>
+
+        <div className="flex gap-2 border-t border-border px-5 py-4">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>Annuler</Button>
+          <Button variant="destructive" className="flex-1" onClick={onConfirm}>
+            <Archive className="h-3.5 w-3.5" />
+            Archiver
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function CancellationModal({
@@ -245,7 +452,6 @@ function OrderModal({
 }) {
   const attempts: CallAttempt[] = Array.isArray(order.callAttempts) ? order.callAttempts : [];
 
-  // Edit fields
   const [customerName, setCustomerName] = useState(order.customerName ?? "");
   const [phone1, setPhone1] = useState(order.customerPhone ?? "");
   const [phone2, setPhone2] = useState(order.customerPhone2 ?? "");
@@ -263,13 +469,11 @@ function OrderModal({
     }))
   );
 
-  // Call fields
   const [callPhone, setCallPhone] = useState(order.customerPhone ?? "");
   const [result, setResult] = useState("NO_ANSWER");
   const [callNote, setCallNote] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Modals
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
 
@@ -314,7 +518,6 @@ function OrderModal({
   async function logAttempt(cancelReason?: string, cancelNote?: string, deliveryCompany?: string, scheduledDate?: string) {
     setLoading(true);
     try {
-      // Save order edits first
       await saveOrder();
 
       const newAttempt: CallAttempt = {
@@ -338,7 +541,6 @@ function OrderModal({
       let newStatus: OrderStatus | undefined;
 
       if (result === "ANSWERED_CONFIRMED" && deliveryCompany) {
-        // Update delivery company and scheduled date
         await fetch(`${API}/orders/${order.id}`, {
           method: "PATCH",
           headers: {
@@ -445,7 +647,6 @@ function OrderModal({
               <div className="p-5 space-y-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Modifier la commande</p>
 
-                {/* Client info */}
                 <div className="space-y-2.5">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-muted">Nom client</label>
@@ -473,7 +674,6 @@ function OrderModal({
                   </div>
                 </div>
 
-                {/* Products */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-medium text-muted">Produits</label>
@@ -532,13 +732,11 @@ function OrderModal({
                   </div>
                 </div>
 
-                {/* Total */}
                 <div className="flex justify-between items-center rounded-lg bg-surface-sunken px-3 py-2">
                   <span className="text-xs font-medium text-muted">Total calculé</span>
                   <span className="font-mono text-sm font-bold">{formatMoney(total, order.currency)}</span>
                 </div>
 
-                {/* Internal note */}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">Note interne</label>
                   <Input value={internalNote} onChange={(e) => setInternalNote(e.target.value)} placeholder="Note pour l'équipe..." />
@@ -551,7 +749,6 @@ function OrderModal({
                   Appel de confirmation ({attempts.length} tentative{attempts.length > 1 ? "s" : ""})
                 </p>
 
-                {/* Previous attempts */}
                 {attempts.length > 0 && (
                   <div className="rounded-lg border border-border divide-y divide-border">
                     {attempts.map((a, i) => (
@@ -571,7 +768,6 @@ function OrderModal({
                   </div>
                 )}
 
-                {/* New attempt */}
                 <div className="space-y-2.5">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-muted">Numéro appelé</label>
@@ -616,7 +812,6 @@ function OrderModal({
                   </div>
                 </div>
 
-                {/* Scheduled delivery info */}
                 {order.scheduledDeliveryDate && (
                   <div className="rounded-lg bg-primary-soft px-3 py-2">
                     <p className="text-xs font-medium text-primary flex items-center gap-1.5">
@@ -626,10 +821,12 @@ function OrderModal({
                   </div>
                 )}
 
-                {/* Delivery company */}
                 {order.deliveryCompany && (
                   <div className="rounded-lg border border-border px-3 py-2">
-                    <p className="text-xs text-muted">Livreur: <span className="font-medium text-foreground">{order.deliveryCompany}</span></p>
+                    <p className="text-xs text-muted flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5" />
+                      Livreur: <span className="font-medium text-foreground">{order.deliveryCompany}</span>
+                    </p>
                   </div>
                 )}
               </div>
@@ -684,10 +881,13 @@ function ConfirmationContent() {
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [tagOrder, setTagOrder] = useState<Order | null>(null);
+  const [archiveOrder, setArchiveOrder] = useState<Order | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "refused" | "a_verifier">("all");
 
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
+  const activeStore = accessibleStores[0];
 
   useEffect(() => {
     if (stores.length > 0 && selectedStoreIds.length === 0) {
@@ -705,16 +905,19 @@ function ConfirmationContent() {
       const data = await res.json();
       const allOrders: Order[] = data.orders ?? [];
 
+      // Hide archived orders
+      const visible = allOrders.filter((o) => o.orderStatus !== "ARCHIVE");
+
       // Auto-tag Client fidèle
       const phoneCounts: Record<string, number> = {};
-      allOrders.forEach((o) => {
+      visible.forEach((o) => {
         if (o.customerPhone) {
           phoneCounts[o.customerPhone] = (phoneCounts[o.customerPhone] ?? 0) + 1;
         }
       });
 
-      const tagged = allOrders.map((o) => {
-        if (o.customerPhone && phoneCounts[o.customerPhone] >= 3) {
+      const tagged = visible.map((o) => {
+        if (o.customerPhone && phoneCounts[o.customerPhone] >= 2) {
           const tags = o.tags ?? [];
           if (!tags.includes("Client fidèle")) {
             return { ...o, tags: [...tags, "Client fidèle"] };
@@ -747,6 +950,18 @@ function ConfirmationContent() {
       })
     );
     fetchOrders();
+  }
+
+  async function archive(orderId: string) {
+    setOrders((prev) => prev.filter((o) => o.id !== orderId));
+    await fetch(`${API}/orders/${orderId}/status`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: "ARCHIVE" }),
+    });
   }
 
   const filtered = orders.filter((o) => {
@@ -793,7 +1008,13 @@ function ConfirmationContent() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-5">
           <h1 className="text-base font-semibold">Confirmation</h1>
-          <p className="text-xs text-muted">{orders.length} commandes</p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Créer commande
+            </Button>
+            <p className="text-xs text-muted">{orders.length} commandes</p>
+          </div>
         </header>
 
         {/* Stats */}
@@ -872,7 +1093,7 @@ function ConfirmationContent() {
                   <th className="px-4 py-2.5">Appel</th>
                   <th className="px-4 py-2.5">Livreur</th>
                   <th className="px-4 py-2.5">Tags</th>
-                  <th className="px-4 py-2.5">Action</th>
+                  <th className="px-4 py-2.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -901,8 +1122,8 @@ function ConfirmationContent() {
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium truncate max-w-[150px]">{order.customerName ?? "—"}</p>
-                        {(order as any).customerPhone2 && (
-                          <p className="text-[11px] text-muted font-mono">{(order as any).customerPhone2}</p>
+                        {order.customerPhone2 && (
+                          <p className="text-[11px] text-muted font-mono">{order.customerPhone2}</p>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -947,14 +1168,23 @@ function ConfirmationContent() {
                         </div>
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          size="sm"
-                          variant={isConfirmed ? "secondary" : isAVerifier ? "destructive" : "default"}
-                          onClick={() => setActiveOrder(order)}
-                        >
-                          <Phone className="h-3.5 w-3.5" />
-                          {isAVerifier ? "Vérifier" : isConfirmed ? "Modifier" : attempts.length === 0 ? "Appeler" : `T.${attempts.length + 1}`}
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant={isConfirmed ? "secondary" : isAVerifier ? "destructive" : "default"}
+                            onClick={() => setActiveOrder(order)}
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                            {isAVerifier ? "Vérifier" : isConfirmed ? "Modifier" : attempts.length === 0 ? "Appeler" : `T.${attempts.length + 1}`}
+                          </Button>
+                          <button
+                            onClick={() => setArchiveOrder(order)}
+                            className="rounded-md p-1.5 text-muted hover:bg-status-cancelled-bg hover:text-status-cancelled"
+                            title="Archiver"
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1007,6 +1237,25 @@ function ConfirmationContent() {
             setTagOrder(null);
           }}
           onClose={() => setTagOrder(null)}
+        />
+      )}
+
+      {archiveOrder && (
+        <ArchiveModal
+          order={archiveOrder}
+          onClose={() => setArchiveOrder(null)}
+          onConfirm={() => {
+            archive(archiveOrder.id);
+            setArchiveOrder(null);
+          }}
+        />
+      )}
+
+      {showCreate && activeStore && (
+        <CreateOrderModal
+          storeId={activeStore.id}
+          onClose={() => setShowCreate(false)}
+          onCreated={fetchOrders}
         />
       )}
     </div>

@@ -52,6 +52,8 @@ const PREP_STATUS_KEYS: OrderStatus[] = [
   "A_PREPARER", "ECHANGE", "EN_PREPARATION", "EMBALLE",
 ];
 
+const DELIVERY_COMPANIES = ["Cosmos", "Aramex", "Tunisie Express", "Autre"];
+
 const STATUS_STYLE: Record<string, string> = {
   A_PREPARER: "bg-status-new-bg text-status-new",
   ECHANGE: "bg-purple-50 text-purple-600",
@@ -79,6 +81,7 @@ function CreateOrderModal({
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
+  const [deliveryCompany, setDeliveryCompany] = useState("");
   const [products, setProducts] = useState([{ title: "", quantity: 1, price: 0 }]);
   const [loading, setLoading] = useState(false);
 
@@ -115,6 +118,7 @@ function CreateOrderModal({
           total,
           source: "manual",
           orderStatus: "A_PREPARER",
+          deliveryCompany,
           lineItems: products.filter((p) => p.title.trim()),
         }),
       });
@@ -137,7 +141,7 @@ function CreateOrderModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Nom client</label>
@@ -157,6 +161,29 @@ function CreateOrderModal({
             </div>
           </div>
 
+          {/* Delivery company */}
+          <div>
+            <label className="mb-2 block text-xs font-medium text-muted">Société de livraison</label>
+            <div className="grid grid-cols-4 gap-2">
+              {DELIVERY_COMPANIES.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setDeliveryCompany(c)}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 rounded-lg border-2 px-2 py-2 text-xs font-medium transition-colors",
+                    deliveryCompany === c
+                      ? "border-primary bg-primary-soft text-primary"
+                      : "border-border text-muted hover:border-border-strong hover:text-foreground"
+                  )}
+                >
+                  <Truck className="h-3.5 w-3.5 shrink-0" />
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Products */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-muted">Produits</label>
@@ -208,7 +235,7 @@ function CreateOrderModal({
           <Button variant="secondary" className="flex-1" onClick={onClose}>Annuler</Button>
           <Button
             className="flex-1"
-            disabled={loading || !name.trim() || !phone.trim() || !products.some((p) => p.title.trim())}
+            disabled={loading || !name.trim() || !phone.trim() || !deliveryCompany || !products.some((p) => p.title.trim())}
             onClick={create}
           >
             <Plus className="h-3.5 w-3.5" />

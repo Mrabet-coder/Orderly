@@ -110,6 +110,7 @@ export class OrdersService {
         total: data.total ?? 0,
         totalRefunded: 0,
         tags: [data.source ?? 'manual'],
+        deliveryCompany: data.deliveryCompany ?? null,
         sourceCreatedAt: new Date(),
         lineItems: {
           create: (data.lineItems ?? []).map((li: any) => ({

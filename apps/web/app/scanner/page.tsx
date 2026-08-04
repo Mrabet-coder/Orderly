@@ -14,9 +14,8 @@ function getToken() {
 }
 
 const SCAN_ACTIONS: { status: OrderStatus; label: string; color: string }[] = [
-  { status: "EN_PREPARATION", label: "En préparation", color: "bg-status-processing-bg text-status-processing border-status-processing" },
-  { status: "A_EXPEDIER", label: "À expédier", color: "bg-status-shipped-bg text-status-shipped" },
-  { status: "AU_DEPOT_LIVREUR", label: "Au dépôt livreur", color: "bg-status-shipped-bg text-status-shipped" },
+  { status: "EMBALLE", label: "Emballé", color: "bg-status-shipped-bg text-status-shipped border-status-shipped" },
+  { status: "AU_DEPOT_LIVREUR", label: "Au dépôt livreur", color: "bg-status-shipped-bg text-status-shipped border-status-shipped" },
   { status: "EN_COURS_DE_LIVRAISON", label: "En cours de livraison", color: "bg-status-shipped-bg text-status-shipped border-status-shipped" },
   { status: "LIVRE", label: "Livré", color: "bg-status-delivered-bg text-status-delivered border-status-delivered" },
   { status: "PAYE", label: "Payé", color: "bg-status-delivered-bg text-status-delivered border-status-delivered" },

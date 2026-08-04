@@ -351,7 +351,7 @@ function OrderModal({
           }),
         });
 
-        newStatus = "CONFIRME";
+        newStatus = "A_PREPARER";
 
         await fetch(`${API}/orders/${order.id}/status`, {
           method: "PATCH",

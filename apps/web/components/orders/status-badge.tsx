@@ -27,6 +27,7 @@ const ORDER_STATUS_STYLE: Record<OrderStatus, string> = {
   IMPRIME: "text-status-shipped bg-status-shipped-bg",
   EMBALLE: "text-status-shipped bg-status-shipped-bg",
   ARCHIVE: "text-muted bg-surface-sunken",
+  A_PREPARER: "text-status-new bg-status-new-bg",
 };
 
 const FINANCIAL_STATUS_STYLE: Record<FinancialStatus, string> = {

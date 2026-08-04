@@ -47,26 +47,23 @@ async function apiChangeStatus(orderId: string, status: OrderStatus) {
 
 const PAGE_SIZE = 25;
 
+// Flux: A_PREPARER → (imprimer) → EN_PREPARATION → (scan) → EMBALLE → (scan livreur) → AU_DEPOT_LIVREUR
 const PREP_STATUS_KEYS: OrderStatus[] = [
-  "CONFIRME", "ECHANGE", "EN_PREPARATION", "IMPRIME", "EMBALLE", "A_EXPEDIER",
+  "A_PREPARER", "ECHANGE", "EN_PREPARATION", "EMBALLE",
 ];
 
 const STATUS_STYLE: Record<string, string> = {
-  CONFIRME: "bg-status-new-bg text-status-new",
+  A_PREPARER: "bg-status-new-bg text-status-new",
   ECHANGE: "bg-purple-50 text-purple-600",
   EN_PREPARATION: "bg-status-processing-bg text-status-processing",
-  IMPRIME: "bg-status-shipped-bg text-status-shipped",
   EMBALLE: "bg-status-shipped-bg text-status-shipped",
-  A_EXPEDIER: "bg-status-shipped-bg text-status-shipped",
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  CONFIRME: "Confirmé",
+  A_PREPARER: "À préparer",
   ECHANGE: "Échange",
   EN_PREPARATION: "En préparation",
-  IMPRIME: "Imprimé",
   EMBALLE: "Emballé",
-  A_EXPEDIER: "À expédier",
 };
 
 function CreateOrderModal({
@@ -117,7 +114,7 @@ function CreateOrderModal({
           subtotal: total,
           total,
           source: "manual",
-          orderStatus: "CONFIRME",
+          orderStatus: "A_PREPARER",
           lineItems: products.filter((p) => p.title.trim()),
         }),
       });
@@ -321,10 +318,11 @@ function PreparationContent() {
     await apiChangeStatus(orderId, status);
   }
 
+  // Imprimer → EN_PREPARATION
   async function handlePrint(order: Order) {
     openBordereau(order.id);
-    if (["EN_PREPARATION", "CONFIRME", "ECHANGE"].includes(order.orderStatus)) {
-      await changeStatus(order.id, "IMPRIME");
+    if (order.orderStatus === "A_PREPARER" || order.orderStatus === "ECHANGE") {
+      await changeStatus(order.id, "EN_PREPARATION");
     }
   }
 
@@ -355,8 +353,8 @@ function PreparationContent() {
     });
     for (const id of ids) {
       const order = orders.find((o) => o.id === id);
-      if (order && ["EN_PREPARATION", "CONFIRME", "ECHANGE"].includes(order.orderStatus)) {
-        await apiChangeStatus(id, "IMPRIME");
+      if (order && ["A_PREPARER", "ECHANGE"].includes(order.orderStatus)) {
+        await apiChangeStatus(id, "EN_PREPARATION");
       }
     }
     fetchOrders();
@@ -409,26 +407,22 @@ function PreparationContent() {
         </header>
 
         {/* Stats */}
-        <div className="grid grid-cols-5 gap-3 border-b border-border bg-surface p-4">
+        <div className="grid grid-cols-4 gap-3 border-b border-border bg-surface p-4">
           <div className="rounded-lg bg-status-new-bg px-3 py-2.5">
             <p className="text-[11px] font-medium text-status-new">À préparer</p>
-            <p className="mt-0.5 text-xl font-bold text-status-new">{(counts["CONFIRME"] ?? 0) + (counts["ECHANGE"] ?? 0)}</p>
+            <p className="mt-0.5 text-xl font-bold text-status-new">{counts["A_PREPARER"] ?? 0}</p>
+          </div>
+          <div className="rounded-lg bg-purple-50 px-3 py-2.5">
+            <p className="text-[11px] font-medium text-purple-600">Échanges</p>
+            <p className="mt-0.5 text-xl font-bold text-purple-600">{counts["ECHANGE"] ?? 0}</p>
           </div>
           <div className="rounded-lg bg-status-processing-bg px-3 py-2.5">
             <p className="text-[11px] font-medium text-status-processing">En préparation</p>
             <p className="mt-0.5 text-xl font-bold text-status-processing">{counts["EN_PREPARATION"] ?? 0}</p>
           </div>
           <div className="rounded-lg bg-status-shipped-bg px-3 py-2.5">
-            <p className="text-[11px] font-medium text-status-shipped">Imprimés</p>
-            <p className="mt-0.5 text-xl font-bold text-status-shipped">{counts["IMPRIME"] ?? 0}</p>
-          </div>
-          <div className="rounded-lg bg-status-shipped-bg px-3 py-2.5">
             <p className="text-[11px] font-medium text-status-shipped">Emballés</p>
             <p className="mt-0.5 text-xl font-bold text-status-shipped">{counts["EMBALLE"] ?? 0}</p>
-          </div>
-          <div className="rounded-lg bg-status-shipped-bg px-3 py-2.5">
-            <p className="text-[11px] font-medium text-status-shipped">À expédier</p>
-            <p className="mt-0.5 text-xl font-bold text-status-shipped">{counts["A_EXPEDIER"] ?? 0}</p>
           </div>
         </div>
 
@@ -446,10 +440,9 @@ function PreparationContent() {
           <div className="flex gap-1">
             {[
               { key: "all", label: "Tous", count: orders.length },
-              { key: "CONFIRME", label: "Confirmés", count: counts["CONFIRME"] ?? 0 },
+              { key: "A_PREPARER", label: "À préparer", count: counts["A_PREPARER"] ?? 0 },
               { key: "ECHANGE", label: "Échanges", count: counts["ECHANGE"] ?? 0 },
               { key: "EN_PREPARATION", label: "En préparation", count: counts["EN_PREPARATION"] ?? 0 },
-              { key: "IMPRIME", label: "Imprimés", count: counts["IMPRIME"] ?? 0 },
               { key: "EMBALLE", label: "Emballés", count: counts["EMBALLE"] ?? 0 },
             ].map((tab) => (
               <button
@@ -554,29 +547,20 @@ function PreparationContent() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        {(order.orderStatus === "CONFIRME" || order.orderStatus === "ECHANGE") && (
-                          <Button size="sm" onClick={() => changeStatus(order.id, "EN_PREPARATION")}>
-                            <Package className="h-3.5 w-3.5" />
-                            Préparer
-                          </Button>
-                        )}
-
-                        {order.orderStatus === "EN_PREPARATION" && (
+                        {/* À PRÉPARER / ÉCHANGE → Imprimer → EN_PREPARATION */}
+                        {(order.orderStatus === "A_PREPARER" || order.orderStatus === "ECHANGE") && (
                           <Button size="sm" onClick={() => handlePrint(order)}>
                             <Printer className="h-3.5 w-3.5" />
                             Imprimer
                           </Button>
                         )}
 
-                        {order.orderStatus === "IMPRIME" && (
+                        {/* EN PRÉPARATION → attend scan, ou forcer Emballé */}
+                        {order.orderStatus === "EN_PREPARATION" && (
                           <>
                             <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "EMBALLE")}>
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               Emballé
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
-                              <Truck className="h-3.5 w-3.5" />
-                              Au dépôt
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => openBordereau(order.id)}>
                               <Printer className="h-3.5 w-3.5" />
@@ -584,18 +568,17 @@ function PreparationContent() {
                           </>
                         )}
 
+                        {/* EMBALLÉ → au dépôt livreur */}
                         {order.orderStatus === "EMBALLE" && (
-                          <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
-                            <Truck className="h-3.5 w-3.5" />
-                            Au dépôt
-                          </Button>
-                        )}
-
-                        {order.orderStatus === "A_EXPEDIER" && (
-                          <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
-                            <Truck className="h-3.5 w-3.5" />
-                            Au dépôt
-                          </Button>
+                          <>
+                            <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
+                              <Truck className="h-3.5 w-3.5" />
+                              Au dépôt
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openBordereau(order.id)}>
+                              <Printer className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
                         )}
 
                         <button

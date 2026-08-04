@@ -21,6 +21,7 @@ export type FulfillmentStatus =
   | "CONFIRMATION_EN_COURS"
   | "CONFIRME"
   | "ECHANGE"
+  | "A_PREPARER"
   | "EN_PREPARATION"
   | "IMPRIME"
   | "EMBALLE"
@@ -44,6 +45,7 @@ export type FulfillmentStatus =
     CONFIRMATION_EN_COURS: "Confirmation en cours",
     CONFIRME: "Confirmé",
     ECHANGE: "Échange",
+    A_PREPARER: "À préparer",
     EN_PREPARATION: "En préparation",
     IMPRIME: "Imprimé",
     EMBALLE: "Emballé",

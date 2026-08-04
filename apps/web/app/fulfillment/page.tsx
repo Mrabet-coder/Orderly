@@ -1,4 +1,11 @@
 "use client";
+import {
+  PeriodFilter,
+  StatCard,
+  getPeriodRange,
+  isInPeriod,
+  type Period,
+} from "@/components/stats/period-filter";
 
 import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -328,6 +335,9 @@ function FulfillmentContent() {
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [page, setPage] = useState(1);
   const [showImport, setShowImport] = useState(false);
+  const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
+  const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
+  const [productFilter, setProductFilter] = useState<string>("all");
 
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
 
@@ -374,6 +384,9 @@ function FulfillmentContent() {
 
   const filtered = orders.filter((o) => {
     if (!selectedStoreIds.includes(o.storeId)) return false;
+    if (!isInPeriod(o.sourceCreatedAt, period)) return false;
+    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
+    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
     if (filter !== "all" && o.orderStatus !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -386,13 +399,52 @@ function FulfillmentContent() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageOrders = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Orders matching stats filters
+  const statsOrders = orders.filter((o) => {
+    if (!selectedStoreIds.includes(o.storeId)) return false;
+    if (!isInPeriod(o.sourceCreatedAt, period)) return false;
+    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
+    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
+    return true;
+  });
+
   const counts: Record<string, number> = {};
-  orders.forEach((o) => {
+  statsOrders.forEach((o) => {
     counts[o.orderStatus] = (counts[o.orderStatus] ?? 0) + 1;
   });
 
-  const paidCount = orders.filter((o) => o.orderStatus === "PAYE").length;
-  const livrePaidCount = orders.filter((o) => o.orderStatus === "LIVRE" || o.orderStatus === "PAYE").length;
+  const statsTotal = statsOrders.length;
+  const paidCount = counts["PAYE"] ?? 0;
+  const livrePaidCount = (counts["LIVRE"] ?? 0) + paidCount;
+  const enCoursCount =
+    (counts["AU_DEPOT_LIVREUR"] ?? 0) +
+    (counts["EN_COURS_DE_LIVRAISON"] ?? 0) +
+    (counts["A_EXPEDIER"] ?? 0);
+  const retourCount =
+    (counts["RETOUR"] ?? 0) +
+    (counts["RETOUR_DEPOT"] ?? 0) +
+    (counts["RETOUR_RECU"] ?? 0);
+
+  // Taux de livraison = livrés / (livrés + retours) — sur les commandes terminées
+  const finished = livrePaidCount + retourCount;
+  const tauxLivraison = finished > 0 ? Math.round((livrePaidCount / finished) * 100) : 0;
+  const tauxRetour = finished > 0 ? Math.round((retourCount / finished) * 100) : 0;
+
+  const caEncaisse = statsOrders
+    .filter((o) => o.orderStatus === "PAYE")
+    .reduce((s, o) => s + Number(o.total), 0);
+
+  const caEnAttente = statsOrders
+    .filter((o) => o.orderStatus === "LIVRE")
+    .reduce((s, o) => s + Number(o.total), 0);
+
+  const deliveryCompanies = Array.from(
+    new Set(orders.map((o) => o.deliveryCompany).filter(Boolean))
+  ) as string[];
+
+  const productNames = Array.from(
+    new Set(orders.flatMap((o) => o.lineItems?.map((li) => li.title) ?? []))
+  ).slice(0, 50);
 
   return (
     <div className="flex h-screen bg-background">
@@ -414,23 +466,76 @@ function FulfillmentContent() {
           </div>
         </header>
 
+        {/* Stats filters */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface px-5 py-3">
+          <PeriodFilter period={period} onChange={setPeriod} />
+
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              value={deliveryFilter}
+              onChange={(e) => setDeliveryFilter(e.target.value)}
+              className="h-8 rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="all">Tous les livreurs</option>
+              {deliveryCompanies.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="h-8 max-w-[200px] rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="all">Tous les produits</option>
+              {productNames.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-3 border-b border-border bg-surface px-5 py-3">
-          <div className="rounded-lg bg-surface-sunken px-3 py-2 text-center">
-            <p className="text-lg font-bold">{orders.length}</p>
-            <p className="text-[11px] text-muted">Total</p>
+        <div className="grid grid-cols-6 gap-3 border-b border-border bg-surface p-4">
+          <StatCard label="Total" value={statsTotal} color="gray" />
+          <StatCard label="En cours" value={enCoursCount} total={statsTotal} color="blue" />
+          <StatCard label="Livrés" value={livrePaidCount} total={statsTotal} color="green" />
+          <StatCard label="Payés" value={paidCount} total={statsTotal} color="green" />
+          <StatCard label="Retours" value={retourCount} total={statsTotal} color="red" />
+          <div className="rounded-lg bg-primary-soft px-4 py-3">
+            <p className="text-[11px] font-medium text-primary">Taux de livraison</p>
+            <p className="mt-1 text-2xl font-bold text-primary">{tauxLivraison}%</p>
+            <div className="mt-2 h-1.5 w-full rounded-full bg-white/50">
+              <div
+                className="h-1.5 rounded-full bg-primary transition-all"
+                style={{ width: `${tauxLivraison}%` }}
+              />
+            </div>
+            <p className="mt-1 text-[10px] text-primary/70">
+              Retour : {tauxRetour}%
+            </p>
           </div>
-          <div className="rounded-lg bg-status-delivered-bg px-3 py-2 text-center">
-            <p className="text-lg font-bold text-status-delivered">{livrePaidCount}</p>
-            <p className="text-[11px] text-status-delivered">Livrés</p>
+        </div>
+
+        {/* Revenue row */}
+        <div className="grid grid-cols-3 gap-3 border-b border-border bg-surface px-5 pb-4">
+          <div className="rounded-lg bg-status-delivered-bg px-4 py-3">
+            <p className="text-[11px] font-medium text-status-delivered">CA encaissé (payé)</p>
+            <p className="mt-1 text-xl font-bold text-status-delivered font-mono">
+              {caEncaisse.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} TND
+            </p>
           </div>
-          <div className="rounded-lg bg-status-delivered-bg px-3 py-2 text-center">
-            <p className="text-lg font-bold text-status-delivered">{paidCount}</p>
-            <p className="text-[11px] text-status-delivered">Payés</p>
+          <div className="rounded-lg bg-status-processing-bg px-4 py-3">
+            <p className="text-[11px] font-medium text-status-processing">CA en attente (livré non payé)</p>
+            <p className="mt-1 text-xl font-bold text-status-processing font-mono">
+              {caEnAttente.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} TND
+            </p>
           </div>
-          <div className="rounded-lg bg-status-refunded-bg px-3 py-2 text-center">
-            <p className="text-lg font-bold text-status-refunded">{counts["RETOUR"] ?? 0}</p>
-            <p className="text-[11px] text-status-refunded">Retours</p>
+          <div className="rounded-lg bg-surface-sunken px-4 py-3">
+            <p className="text-[11px] font-medium text-muted">Commandes terminées</p>
+            <p className="mt-1 text-xl font-bold font-mono">
+              {finished} <span className="text-xs font-normal text-muted">/ {statsTotal}</span>
+            </p>
           </div>
         </div>
 

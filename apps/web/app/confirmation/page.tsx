@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  PeriodFilter,
+  StatCard,
+  getPeriodRange,
+  isInPeriod,
+  type Period,
+} from "@/components/stats/period-filter";
+
 import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { RouteGuard } from "@/components/auth/route-guard";
@@ -885,7 +893,9 @@ function ConfirmationContent() {
   const [showCreate, setShowCreate] = useState(false);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "refused" | "a_verifier">("all");
-
+  const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
+  const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
+  const [productFilter, setProductFilter] = useState<string>("all");
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
   const activeStore = accessibleStores[0];
 
@@ -966,6 +976,9 @@ function ConfirmationContent() {
 
   const filtered = orders.filter((o) => {
     if (!selectedStoreIds.includes(o.storeId)) return false;
+    if (!isInPeriod(o.sourceCreatedAt, period)) return false;
+    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
+    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
     if (search) {
       const q = search.toLowerCase();
       const hay = `${o.orderNumber} ${o.customerName ?? ""} ${o.customerPhone ?? ""}`.toLowerCase();
@@ -984,19 +997,52 @@ function ConfirmationContent() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageOrders = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const confirmedCount = orders.filter((o) => {
+  // Orders matching the stats filters (period + delivery + product)
+  const statsOrders = orders.filter((o) => {
+    if (!selectedStoreIds.includes(o.storeId)) return false;
+    if (!isInPeriod(o.sourceCreatedAt, period)) return false;
+    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
+    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
+    return true;
+  });
+
+  const statsTotal = statsOrders.length;
+
+  const confirmedCount = statsOrders.filter((o) => {
     const attempts = Array.isArray(o.callAttempts) ? o.callAttempts as CallAttempt[] : [];
     return attempts.some((a) => a.result === "ANSWERED_CONFIRMED");
   }).length;
 
-  const refusedCount = orders.filter((o) => {
+  const refusedCount = statsOrders.filter((o) => {
     const attempts = Array.isArray(o.callAttempts) ? o.callAttempts as CallAttempt[] : [];
     return attempts.some((a) => a.result === "ANSWERED_REFUSED") || o.orderStatus === "ANNULE";
   }).length;
 
-  const aVerifierCount = orders.filter((o) => o.orderStatus === "A_VERIFIER").length;
-  const pendingCount = orders.length - confirmedCount - refusedCount - aVerifierCount;
+  const aVerifierCount = statsOrders.filter((o) => o.orderStatus === "A_VERIFIER").length;
+  const pendingCount = statsTotal - confirmedCount - refusedCount - aVerifierCount;
 
+  const totalAttempts = statsOrders.reduce((s, o) => {
+    const attempts = Array.isArray(o.callAttempts) ? o.callAttempts as CallAttempt[] : [];
+    return s + attempts.length;
+  }, 0);
+
+  const avgAttempts = statsTotal > 0 ? (totalAttempts / statsTotal).toFixed(1) : "0";
+
+  const revenue = statsOrders
+    .filter((o) => {
+      const attempts = Array.isArray(o.callAttempts) ? o.callAttempts as CallAttempt[] : [];
+      return attempts.some((a) => a.result === "ANSWERED_CONFIRMED");
+    })
+    .reduce((s, o) => s + Number(o.total), 0);
+
+  // Unique values for filters
+  const deliveryCompanies = Array.from(
+    new Set(orders.map((o) => o.deliveryCompany).filter(Boolean))
+  ) as string[];
+
+  const productNames = Array.from(
+    new Set(orders.flatMap((o) => o.lineItems?.map((li) => li.title) ?? []))
+  ).slice(0, 50);
   return (
     <div className="flex h-screen bg-background">
       <Sidebar
@@ -1017,23 +1063,50 @@ function ConfirmationContent() {
           </div>
         </header>
 
+        {/* Stats filters */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface px-5 py-3">
+          <PeriodFilter period={period} onChange={setPeriod} />
+
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              value={deliveryFilter}
+              onChange={(e) => setDeliveryFilter(e.target.value)}
+              className="h-8 rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="all">Tous les livreurs</option>
+              {deliveryCompanies.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="h-8 max-w-[200px] rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="all">Tous les produits</option>
+              {productNames.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-3 border-b border-border bg-surface p-4">
-          <div className="rounded-lg bg-status-processing-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-processing">En attente</p>
-            <p className="mt-1 text-2xl font-bold text-status-processing">{pendingCount}</p>
-          </div>
-          <div className="rounded-lg bg-status-delivered-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-delivered">Confirmés</p>
-            <p className="mt-1 text-2xl font-bold text-status-delivered">{confirmedCount}</p>
-          </div>
-          <div className="rounded-lg bg-status-cancelled-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-cancelled">Refusés</p>
-            <p className="mt-1 text-2xl font-bold text-status-cancelled">{refusedCount}</p>
-          </div>
-          <div className="rounded-lg bg-status-cancelled-bg px-4 py-3">
-            <p className="text-xs font-medium text-status-cancelled">À vérifier</p>
-            <p className="mt-1 text-2xl font-bold text-status-cancelled">{aVerifierCount}</p>
+        <div className="grid grid-cols-6 gap-3 border-b border-border bg-surface p-4">
+          <StatCard label="Total" value={statsTotal} color="gray" />
+          <StatCard label="Confirmés" value={confirmedCount} total={statsTotal} color="green" />
+          <StatCard label="Refusés" value={refusedCount} total={statsTotal} color="red" />
+          <StatCard label="En attente" value={pendingCount} total={statsTotal} color="orange" />
+          <StatCard label="À vérifier" value={aVerifierCount} total={statsTotal} color="red" />
+          <div className="rounded-lg bg-primary-soft px-4 py-3">
+            <p className="text-[11px] font-medium text-primary">CA confirmé</p>
+            <p className="mt-1 text-2xl font-bold text-primary font-mono">
+              {revenue.toLocaleString("fr-FR", { maximumFractionDigits: 0 })}
+            </p>
+            <p className="mt-1 text-[10px] text-primary/70">
+              Moy. {avgAttempts} tentative{Number(avgAttempts) > 1 ? "s" : ""}/commande
+            </p>
           </div>
         </div>
 

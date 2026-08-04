@@ -99,7 +99,7 @@ export class OrdersService {
         orderNumber,
         financialStatus: 'PENDING',
         fulfillmentStatus: 'UNFULFILLED',
-        orderStatus: 'NOUVEAU',
+        orderStatus: data.orderStatus ?? 'NOUVEAU',
         customerName: data.customerName ?? null,
         customerPhone: data.customerPhone ?? null,
         shippingAddress: data.shippingAddress ?? null,

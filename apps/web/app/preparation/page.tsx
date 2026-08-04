@@ -117,6 +117,7 @@ function CreateOrderModal({
           subtotal: total,
           total,
           source: "manual",
+          orderStatus: "CONFIRME",
           lineItems: products.filter((p) => p.title.trim()),
         }),
       });
@@ -222,6 +223,50 @@ function CreateOrderModal({
   );
 }
 
+function ArchiveModal({
+  order,
+  onClose,
+  onConfirm,
+}: {
+  order: Order;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-surface shadow-2xl">
+        <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-status-cancelled-bg">
+            <Archive className="h-4 w-4 text-status-cancelled" />
+          </div>
+          <h2 className="text-sm font-semibold">Archiver la commande ?</h2>
+        </div>
+
+        <div className="space-y-3 p-5">
+          <div className="rounded-lg bg-surface-sunken px-3 py-2.5">
+            <p className="font-mono text-sm font-semibold">{order.orderNumber}</p>
+            <p className="mt-0.5 text-xs text-muted">
+              {order.customerName ?? "—"} · {formatMoney(order.total, order.currency)}
+            </p>
+          </div>
+          <p className="text-xs text-muted leading-relaxed">
+            La commande sera déplacée vers les archives. Elle n'est pas supprimée
+            et pourra être récupérée à tout moment.
+          </p>
+        </div>
+
+        <div className="flex gap-2 border-t border-border px-5 py-4">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>Annuler</Button>
+          <Button variant="destructive" className="flex-1" onClick={onConfirm}>
+            <Archive className="h-3.5 w-3.5" />
+            Archiver
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PreparationContent() {
   const { canAccessStore } = useAuth();
   const { stores } = useStores();
@@ -233,6 +278,7 @@ function PreparationContent() {
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
   const [showCreate, setShowCreate] = useState(false);
+  const [archiveOrder, setArchiveOrder] = useState<Order | null>(null);
 
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
   const activeStore = accessibleStores[0];
@@ -264,23 +310,20 @@ function PreparationContent() {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Direct status change — no popup
   async function changeStatus(orderId: string, status: OrderStatus) {
-    setOrders((prev) =>
-      prev.map((o) => o.id === orderId ? { ...o, orderStatus: status } : o)
-    );
-    await apiChangeStatus(orderId, status);
-    // Remove from list if archived
-    if (status === "ARCHIVE" || status === "AU_DEPOT_LIVREUR") {
-      setOrders((prev) => prev.filter((o) => o.id !== orderId || PREP_STATUS_KEYS.includes(status)));
-      fetchOrders();
+    if (PREP_STATUS_KEYS.includes(status)) {
+      setOrders((prev) =>
+        prev.map((o) => o.id === orderId ? { ...o, orderStatus: status } : o)
+      );
+    } else {
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
     }
+    await apiChangeStatus(orderId, status);
   }
 
-  // Print → auto IMPRIME
   async function handlePrint(order: Order) {
     openBordereau(order.id);
-    if (order.orderStatus === "EN_PREPARATION" || order.orderStatus === "CONFIRME" || order.orderStatus === "ECHANGE") {
+    if (["EN_PREPARATION", "CONFIRME", "ECHANGE"].includes(order.orderStatus)) {
       await changeStatus(order.id, "IMPRIME");
     }
   }
@@ -305,7 +348,6 @@ function PreparationContent() {
     });
   }
 
-  // Bulk print → all become IMPRIME
   async function printBulk() {
     const ids = Array.from(selectedIds);
     ids.forEach((id, i) => {
@@ -512,7 +554,6 @@ function PreparationContent() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        {/* CONFIRME / ECHANGE → Préparer (direct, no popup) */}
                         {(order.orderStatus === "CONFIRME" || order.orderStatus === "ECHANGE") && (
                           <Button size="sm" onClick={() => changeStatus(order.id, "EN_PREPARATION")}>
                             <Package className="h-3.5 w-3.5" />
@@ -520,7 +561,6 @@ function PreparationContent() {
                           </Button>
                         )}
 
-                        {/* EN_PREPARATION → Imprimer (auto IMPRIME) */}
                         {order.orderStatus === "EN_PREPARATION" && (
                           <Button size="sm" onClick={() => handlePrint(order)}>
                             <Printer className="h-3.5 w-3.5" />
@@ -528,7 +568,6 @@ function PreparationContent() {
                           </Button>
                         )}
 
-                        {/* IMPRIME → Emballé OU direct Au dépôt */}
                         {order.orderStatus === "IMPRIME" && (
                           <>
                             <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "EMBALLE")}>
@@ -545,7 +584,6 @@ function PreparationContent() {
                           </>
                         )}
 
-                        {/* EMBALLE → Au dépôt livreur */}
                         {order.orderStatus === "EMBALLE" && (
                           <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
                             <Truck className="h-3.5 w-3.5" />
@@ -553,7 +591,6 @@ function PreparationContent() {
                           </Button>
                         )}
 
-                        {/* A_EXPEDIER (legacy) → Au dépôt */}
                         {order.orderStatus === "A_EXPEDIER" && (
                           <Button size="sm" variant="secondary" onClick={() => changeStatus(order.id, "AU_DEPOT_LIVREUR")}>
                             <Truck className="h-3.5 w-3.5" />
@@ -561,10 +598,9 @@ function PreparationContent() {
                           </Button>
                         )}
 
-                        {/* Archive — always available */}
                         <button
-                          onClick={() => changeStatus(order.id, "ARCHIVE")}
-                          className="rounded-md p-1.5 text-muted hover:bg-surface-sunken hover:text-foreground"
+                          onClick={() => setArchiveOrder(order)}
+                          className="rounded-md p-1.5 text-muted hover:bg-status-cancelled-bg hover:text-status-cancelled"
                           title="Archiver"
                         >
                           <Archive className="h-3.5 w-3.5" />
@@ -602,6 +638,17 @@ function PreparationContent() {
           </div>
         </footer>
       </div>
+
+      {archiveOrder && (
+        <ArchiveModal
+          order={archiveOrder}
+          onClose={() => setArchiveOrder(null)}
+          onConfirm={() => {
+            changeStatus(archiveOrder.id, "ARCHIVE");
+            setArchiveOrder(null);
+          }}
+        />
+      )}
 
       {showCreate && activeStore && (
         <CreateOrderModal

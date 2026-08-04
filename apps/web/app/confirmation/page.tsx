@@ -351,7 +351,7 @@ function OrderModal({
           }),
         });
 
-        newStatus = scheduledDate ? "CONFIRME" : "EN_PREPARATION";
+        newStatus = "CONFIRME";
 
         await fetch(`${API}/orders/${order.id}/status`, {
           method: "PATCH",

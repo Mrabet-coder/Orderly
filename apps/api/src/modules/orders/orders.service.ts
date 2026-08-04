@@ -156,6 +156,106 @@ export class OrdersService {
       actorEmail: e.actor ? userMap[e.actor]?.email : null,
     }));
   }
+  async detectLoyalCustomers() {
+    const TAG = 'Client fidèle';
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+  
+    // Get all orders with a phone, sorted by date
+    const orders = await this.prisma.order.findMany({
+      where: { customerPhone: { not: null } },
+      select: {
+        id: true,
+        customerPhone: true,
+        sourceCreatedAt: true,
+        tags: true,
+        orderStatus: true,
+      },
+      orderBy: { sourceCreatedAt: 'asc' },
+    });
+  
+    // Group by phone
+    const byPhone: Record<string, typeof orders> = {};
+    for (const o of orders) {
+      const phone = (o.customerPhone ?? '').replace(/\s|\+216/g, '');
+      if (!phone || phone.length < 6) continue;
+      if (!byPhone[phone]) byPhone[phone] = [];
+      byPhone[phone].push(o);
+    }
+  
+    const toTag: string[] = [];
+    const toUntag: string[] = [];
+  
+    for (const phone of Object.keys(byPhone)) {
+      const list = byPhone[phone];
+      // Ignore cancelled/archived when counting real orders
+      const valid = list.filter(
+        (o) => o.orderStatus !== 'ANNULE' && o.orderStatus !== 'ARCHIVE',
+      );
+  
+      if (valid.length < 2) {
+        // Not loyal — remove tag if present
+        list.forEach((o) => {
+          if (o.tags.includes(TAG)) toUntag.push(o.id);
+        });
+        continue;
+      }
+  
+      const first = new Date(valid[0].sourceCreatedAt).getTime();
+  
+      // Find orders placed at least 6h after the first one
+      const loyal = valid.filter(
+        (o) => new Date(o.sourceCreatedAt).getTime() - first >= SIX_HOURS,
+      );
+  
+      if (loyal.length === 0) {
+        // All orders within 6h — likely a duplicate, not loyal
+        list.forEach((o) => {
+          if (o.tags.includes(TAG)) toUntag.push(o.id);
+        });
+        continue;
+      }
+  
+      // Tag ALL orders of this customer (first one included)
+      valid.forEach((o) => {
+        if (!o.tags.includes(TAG)) toTag.push(o.id);
+      });
+    }
+  
+    // Apply — add tag
+    for (const id of toTag) {
+      const order = orders.find((o) => o.id === id);
+      if (!order) continue;
+      await this.prisma.order.update({
+        where: { id },
+        data: { tags: { set: [...order.tags, TAG] } },
+      });
+    }
+  
+    // Apply — remove tag
+    for (const id of toUntag) {
+      const order = orders.find((o) => o.id === id);
+      if (!order) continue;
+      await this.prisma.order.update({
+        where: { id },
+        data: { tags: { set: order.tags.filter((t) => t !== TAG) } },
+      });
+    }
+  
+    return {
+      tagged: toTag.length,
+      untagged: toUntag.length,
+      loyalCustomers: Object.keys(byPhone).filter((p) => {
+        const valid = byPhone[p].filter(
+          (o) => o.orderStatus !== 'ANNULE' && o.orderStatus !== 'ARCHIVE',
+        );
+        if (valid.length < 2) return false;
+        const first = new Date(valid[0].sourceCreatedAt).getTime();
+        return valid.some(
+          (o) => new Date(o.sourceCreatedAt).getTime() - first >= SIX_HOURS,
+        );
+      }).length,
+    };
+  }
   async updateOrder(
     orderId: string,
     data: any,

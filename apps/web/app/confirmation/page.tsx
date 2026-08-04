@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Phone, Search, X, ChevronLeft, ChevronRight,
-  Plus, Trash2, Edit2, Check, Building2, Calendar, Archive, Truck,
+  Plus, Trash2, Edit2, Check, Building2, Calendar, Archive, Truck,Sparkles,
 } from "lucide-react";
 import { Order, OrderStatus, CallAttempt } from "@/types/order";
 import { OrderStatusBadge } from "@/components/orders/status-badge";
@@ -891,6 +891,7 @@ function ConfirmationContent() {
   const [tagOrder, setTagOrder] = useState<Order | null>(null);
   const [archiveOrder, setArchiveOrder] = useState<Order | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [detectingLoyal, setDetectingLoyal] = useState(false);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "refused" | "a_verifier">("all");
   const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
@@ -918,25 +919,7 @@ function ConfirmationContent() {
       // Hide archived orders
       const visible = allOrders.filter((o) => o.orderStatus !== "ARCHIVE");
 
-      // Auto-tag Client fidèle
-      const phoneCounts: Record<string, number> = {};
-      visible.forEach((o) => {
-        if (o.customerPhone) {
-          phoneCounts[o.customerPhone] = (phoneCounts[o.customerPhone] ?? 0) + 1;
-        }
-      });
-
-      const tagged = visible.map((o) => {
-        if (o.customerPhone && phoneCounts[o.customerPhone] >= 2) {
-          const tags = o.tags ?? [];
-          if (!tags.includes("Client fidèle")) {
-            return { ...o, tags: [...tags, "Client fidèle"] };
-          }
-        }
-        return o;
-      });
-
-      setOrders(tagged);
+      setOrders(visible);
     } catch {
       setOrders([]);
     } finally {
@@ -961,7 +944,25 @@ function ConfirmationContent() {
     );
     fetchOrders();
   }
-
+  async function detectLoyalCustomers() {
+    setDetectingLoyal(true);
+    try {
+      const res = await fetch(`${API}/orders/detect-loyal-customers`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      alert(
+        `${data.loyalCustomers} clients fidèles détectés.\n` +
+        `${data.tagged} commandes taguées, ${data.untagged} tags retirés.`
+      );
+      fetchOrders();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDetectingLoyal(false);
+    }
+  }
   async function archive(orderId: string) {
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
     await fetch(`${API}/orders/${orderId}/status`, {
@@ -1055,6 +1056,15 @@ function ConfirmationContent() {
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-5">
           <h1 className="text-base font-semibold">Confirmation</h1>
           <div className="flex items-center gap-2">
+          <Button
+              size="sm"
+              variant="secondary"
+              onClick={detectLoyalCustomers}
+              disabled={detectingLoyal}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {detectingLoyal ? "Détection..." : "Détecter clients fidèles"}
+            </Button>
             <Button size="sm" onClick={() => setShowCreate(true)}>
               <Plus className="h-3.5 w-3.5" />
               Créer commande

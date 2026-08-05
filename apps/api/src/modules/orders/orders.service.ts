@@ -156,6 +156,154 @@ export class OrdersService {
       actorEmail: e.actor ? userMap[e.actor]?.email : null,
     }));
   }
+  async createExchange(
+    originalOrderId: string,
+    data: {
+      itemsToRecover: { title: string; sku?: string; variantTitle?: string; quantity: number }[];
+      itemsToSend: { title: string; sku?: string; variantTitle?: string; quantity: number; price?: number }[];
+      priceDifference?: number;
+      reason: string;
+      deliveryCompany?: string;
+    },
+    actorId: string,
+  ) {
+    const original = await this.prisma.order.findUnique({
+      where: { id: originalOrderId },
+      include: { lineItems: true },
+    });
+    if (!original) throw new Error('Original order not found');
+  
+    const diff = data.priceDifference ?? 0;
+    const exchangeNumber = `#E-${original.orderNumber.replace('#', '')}`;
+  
+    // Store exchange metadata in internalNote as JSON
+    const exchangeMeta = {
+      exchange: {
+        originalOrderId,
+        originalOrderNumber: original.orderNumber,
+        itemsToRecover: data.itemsToRecover,
+        reason: data.reason,
+        createdAt: new Date().toISOString(),
+      },
+    };
+  
+    const exchangeOrder = await this.prisma.order.create({
+      data: {
+        storeId: original.storeId,
+        externalOrderId: `exchange_${Date.now()}`,
+        orderNumber: exchangeNumber,
+        financialStatus: 'PENDING',
+        fulfillmentStatus: 'UNFULFILLED',
+        orderStatus: 'ECHANGE',
+        customerName: original.customerName,
+        customerPhone: original.customerPhone,
+        customerPhone2: original.customerPhone2,
+        customerEmail: original.customerEmail,
+        shippingAddress: original.shippingAddress ?? undefined,
+        currency: original.currency,
+        subtotal: diff,
+        taxTotal: 0,
+        shippingTotal: 0,
+        total: diff,
+        totalRefunded: 0,
+        tags: ['Échange'],
+        internalNote: JSON.stringify(exchangeMeta),
+        deliveryCompany: data.deliveryCompany ?? original.deliveryCompany,
+        sourceCreatedAt: new Date(),
+        lineItems: {
+          create: data.itemsToSend.map((li) => ({
+            title: li.title,
+            sku: li.sku ?? null,
+            variantTitle: li.variantTitle ?? null,
+            quantity: li.quantity,
+            price: li.price ?? 0,
+            fulfilledQty: 0,
+            refundedQty: 0,
+          })),
+        },
+      },
+      include: { lineItems: true },
+    });
+  
+    // Tag original order
+    const originalTags = original.tags.includes('Échange')
+      ? original.tags
+      : [...original.tags, 'Échange'];
+  
+    await this.prisma.order.update({
+      where: { id: originalOrderId },
+      data: { tags: originalTags },
+    });
+  
+    await this.prisma.orderEvent.create({
+      data: {
+        orderId: exchangeOrder.id,
+        eventType: 'exchange_created',
+        payload: {
+          originalOrderNumber: original.orderNumber,
+          reason: data.reason,
+          priceDifference: diff,
+        },
+        actor: actorId,
+      },
+    });
+  
+    await this.prisma.orderEvent.create({
+      data: {
+        orderId: originalOrderId,
+        eventType: 'exchange_requested',
+        payload: {
+          exchangeOrderNumber: exchangeNumber,
+          reason: data.reason,
+        },
+        actor: actorId,
+      },
+    });
+  
+    return exchangeOrder;
+  }
+  
+  // Restock recovered items when exchange is delivered
+  async restockExchangeItems(orderId: string, actorId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order?.internalNote) return { restocked: 0 };
+  
+    let meta: any = {};
+    try { meta = JSON.parse(order.internalNote); } catch { return { restocked: 0 }; }
+    if (!meta.exchange?.itemsToRecover) return { restocked: 0 };
+  
+    let restocked = 0;
+    for (const item of meta.exchange.itemsToRecover) {
+      if (!item.sku) continue;
+      const product = await this.prisma.product.findUnique({
+        where: { storeId_sku: { storeId: order.storeId, sku: item.sku } },
+      });
+      if (!product) continue;
+  
+      const before = product.quantityAvailable;
+      const after = before + item.quantity;
+  
+      await this.prisma.product.update({
+        where: { id: product.id },
+        data: { quantityAvailable: after },
+      });
+  
+      await this.prisma.inventoryLog.create({
+        data: {
+          productId: product.id,
+          type: 'EXCHANGE_RETURN',
+          quantityChange: item.quantity,
+          quantityBefore: before,
+          quantityAfter: after,
+          note: `Retour échange — commande ${order.orderNumber}`,
+          actor: actorId,
+        },
+      });
+      restocked++;
+    }
+  
+    return { restocked };
+  }
   async detectLoyalCustomers() {
     const TAG = 'Client fidèle';
     const SIX_HOURS = 6 * 60 * 60 * 1000;

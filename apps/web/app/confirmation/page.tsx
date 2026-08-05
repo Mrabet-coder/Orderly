@@ -18,11 +18,12 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Phone, Search, X, ChevronLeft, ChevronRight,
-  Plus, Trash2, Edit2, Check, Building2, Calendar, Archive, Truck,Sparkles,
+  Plus, Trash2, Edit2, Check, Building2, Calendar, Archive, Truck,Sparkles,ArrowRightLeft,
 } from "lucide-react";
 import { Order, OrderStatus, CallAttempt } from "@/types/order";
 import { OrderStatusBadge } from "@/components/orders/status-badge";
 import { TagBadge, TagPicker } from "@/components/orders/tag-picker";
+import { ExchangeModal } from "@/components/orders/exchange-modal";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
@@ -892,6 +893,7 @@ function ConfirmationContent() {
   const [archiveOrder, setArchiveOrder] = useState<Order | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [detectingLoyal, setDetectingLoyal] = useState(false);
+  const [exchangeOrder, setExchangeOrder] = useState<Order | null>(null);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "refused" | "a_verifier">("all");
   const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
@@ -1261,6 +1263,13 @@ function ConfirmationContent() {
                             {isAVerifier ? "Vérifier" : isConfirmed ? "Modifier" : attempts.length === 0 ? "Appeler" : `T.${attempts.length + 1}`}
                           </Button>
                           <button
+                            onClick={() => setExchangeOrder(order)}
+                            className="rounded-md p-1.5 text-muted hover:bg-purple-50 hover:text-purple-600"
+                            title="Créer un échange"
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <button
                             onClick={() => setArchiveOrder(order)}
                             className="rounded-md p-1.5 text-muted hover:bg-status-cancelled-bg hover:text-status-cancelled"
                             title="Archiver"
@@ -1333,7 +1342,17 @@ function ConfirmationContent() {
           }}
         />
       )}
-
+{exchangeOrder && (
+        <ExchangeModal
+          order={exchangeOrder}
+          onClose={() => setExchangeOrder(null)}
+          onCreated={(num) => {
+            alert(`Échange créé : ${num}\nLa commande apparaît maintenant dans Préparation.`);
+            fetchOrders();
+            setExchangeOrder(null);
+          }}
+        />
+      )}
       {showCreate && activeStore && (
         <CreateOrderModal
           storeId={activeStore.id}

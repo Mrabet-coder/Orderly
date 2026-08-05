@@ -29,6 +29,26 @@ export class BordereauService {
     });
 
     const shippingAddress = order.shippingAddress as any;
+    // Exchange info
+    let exchangeHtml = '';
+    if (order.internalNote) {
+      try {
+        const meta = JSON.parse(order.internalNote);
+        if (meta.exchange?.itemsToRecover?.length) {
+          const items = meta.exchange.itemsToRecover
+            .map((i: any) => `${i.title}${i.variantTitle ? ' - ' + i.variantTitle : ''} x ${i.quantity}`)
+            .join(' / ');
+          exchangeHtml = [
+            '<div style="border:3px solid #000;background:#f5f5f5;padding:12px;margin-bottom:15px;">',
+            '<p style="font-size:14px;font-weight:bold;margin-bottom:6px;">*** ECHANGE - PRODUIT A RECUPERER ***</p>',
+            '<p style="font-size:13px;font-weight:bold;">' + items + '</p>',
+            '<p style="font-size:11px;margin-top:6px;">Commande origine: ' + (meta.exchange.originalOrderNumber ?? '-') + '</p>',
+            '<p style="font-size:11px;">Raison: ' + (meta.exchange.reason ?? '-') + '</p>',
+            '</div>',
+          ].join('');
+        }
+      } catch {}
+    }
 
     const lineItemsHtml = order.lineItems.map((li) => {
       const price = (Number(li.price) * li.quantity).toFixed(3);
@@ -123,6 +143,8 @@ export class BordereauService {
       '</div>',
 
       '<hr class="divider" />',
+
+      exchangeHtml,
 
       '<div class="products">',
       '<h3>Articles commandes</h3>',

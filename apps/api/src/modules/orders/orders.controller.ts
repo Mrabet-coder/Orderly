@@ -114,6 +114,22 @@ export class OrdersController {
 detectLoyal() {
   return this.orders.detectLoyalCustomers();
 }
+@Post(':id/exchange')
+createExchange(
+  @Param('id') id: string,
+  @Body() body: any,
+  @Request() req: any,
+) {
+  return this.orders.createExchange(id, body, req.user.id);
+}
+
+@Post(':id/restock-exchange')
+restockExchange(
+  @Param('id') id: string,
+  @Request() req: any,
+) {
+  return this.orders.restockExchangeItems(id, req.user.id);
+}
   @Get(':id/events')
   getEvents(@Param('id') id: string) {
     return this.orders.getOrderEvents(id);

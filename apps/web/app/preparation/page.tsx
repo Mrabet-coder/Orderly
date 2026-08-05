@@ -497,7 +497,7 @@ function PreparationContent() {
 
        {/* Filters */}
        <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
-          <div className="flex items-center gap-3 overflow-x-auto">
+       <div className="flex items-center gap-3">
           <div className="relative w-64 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
             <Input

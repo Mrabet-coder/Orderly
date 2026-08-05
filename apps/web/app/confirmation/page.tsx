@@ -1,4 +1,11 @@
 "use client";
+import {
+  AdvancedFilters,
+  ActiveFilterChips,
+  applyAdvancedFilters,
+  EMPTY_FILTERS,
+  type AdvancedFilterState,
+} from "@/components/stats/advanced-filters";
 
 import {
   PeriodFilter,
@@ -897,8 +904,7 @@ function ConfirmationContent() {
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "refused" | "a_verifier">("all");
   const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
-  const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
-  const [productFilter, setProductFilter] = useState<string>("all");
+  const [advFilters, setAdvFilters] = useState<AdvancedFilterState>(EMPTY_FILTERS);
   const accessibleStores = stores.filter((s) => canAccessStore(s.id));
   const activeStore = accessibleStores[0];
 
@@ -980,8 +986,7 @@ function ConfirmationContent() {
   const filtered = orders.filter((o) => {
     if (!selectedStoreIds.includes(o.storeId)) return false;
     if (!isInPeriod(o.sourceCreatedAt, period)) return false;
-    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
-    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
+    if (!applyAdvancedFilters(o, advFilters)) return false;
     if (search) {
       const q = search.toLowerCase();
       const hay = `${o.orderNumber} ${o.customerName ?? ""} ${o.customerPhone ?? ""}`.toLowerCase();
@@ -1004,8 +1009,7 @@ function ConfirmationContent() {
   const statsOrders = orders.filter((o) => {
     if (!selectedStoreIds.includes(o.storeId)) return false;
     if (!isInPeriod(o.sourceCreatedAt, period)) return false;
-    if (deliveryFilter !== "all" && o.deliveryCompany !== deliveryFilter) return false;
-    if (productFilter !== "all" && !o.lineItems?.some((li) => li.title === productFilter)) return false;
+    if (!applyAdvancedFilters(o, advFilters)) return false;
     return true;
   });
 
@@ -1038,14 +1042,7 @@ function ConfirmationContent() {
     })
     .reduce((s, o) => s + Number(o.total), 0);
 
-  // Unique values for filters
-  const deliveryCompanies = Array.from(
-    new Set(orders.map((o) => o.deliveryCompany).filter(Boolean))
-  ) as string[];
-
-  const productNames = Array.from(
-    new Set(orders.flatMap((o) => o.lineItems?.map((li) => li.title) ?? []))
-  ).slice(0, 50);
+  
   return (
     <div className="flex h-screen bg-background">
       <Sidebar
@@ -1076,32 +1073,14 @@ function ConfirmationContent() {
         </header>
 
         {/* Stats filters */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface px-5 py-3">
-          <PeriodFilter period={period} onChange={setPeriod} />
-
-          <div className="ml-auto flex items-center gap-2">
-            <select
-              value={deliveryFilter}
-              onChange={(e) => setDeliveryFilter(e.target.value)}
-              className="h-8 rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="all">Tous les livreurs</option>
-              {deliveryCompanies.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-
-            <select
-              value={productFilter}
-              onChange={(e) => setProductFilter(e.target.value)}
-              className="h-8 max-w-[200px] rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="all">Tous les produits</option>
-              {productNames.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+        <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <PeriodFilter period={period} onChange={setPeriod} />
+            <div className="ml-auto">
+              <AdvancedFilters filters={advFilters} onChange={setAdvFilters} orders={orders} />
+            </div>
           </div>
+          <ActiveFilterChips filters={advFilters} onChange={setAdvFilters} />
         </div>
 
         {/* Stats */}

@@ -291,6 +291,7 @@ model User {
   isActive     Boolean   @default(true)
 
   storeAccess  UserStoreAccess[]
+  notifications Notification[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -304,4 +305,23 @@ model UserStoreAccess {
   store   Store  @relation(fields: [storeId], references: [id])
 
   @@unique([userId, storeId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String   // mention, stock_alert, scheduled_delivery, reclamation
+  title     String
+  message   String
+  link      String?  // /confirmation?order=xxx
+  orderId   String?
+  actorName String?
+
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }

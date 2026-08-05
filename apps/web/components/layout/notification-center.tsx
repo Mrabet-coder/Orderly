@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { Bell, X, AlertTriangle, Calendar, MessageSquare } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, X, AtSign, AlertTriangle, Calendar, MessageSquare, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Order } from "@/types/order";
 
@@ -14,12 +14,14 @@ function getToken() {
 
 interface Notification {
   id: string;
-  type: "stock" | "reclamation" | "scheduled" | "mention";
+  type: string;
   title: string;
   message: string;
-  href: string;
+  link: string | null;
+  orderId: string | null;
+  actorName: string | null;
+  isRead: boolean;
   createdAt: string;
-  read: boolean;
 }
 
 function timeAgo(iso: string) {
@@ -32,26 +34,48 @@ function timeAgo(iso: string) {
   return `il y a ${Math.floor(hrs / 24)}j`;
 }
 
-const ICON_MAP = {
-  stock: AlertTriangle,
+const ICON_MAP: Record<string, any> = {
+  mention: AtSign,
+  stock_alert: AlertTriangle,
+  scheduled_delivery: Calendar,
   reclamation: MessageSquare,
+  stock: AlertTriangle,
   scheduled: Calendar,
-  mention: MessageSquare,
 };
 
-const COLOR_MAP = {
+const COLOR_MAP: Record<string, string> = {
+  mention: "text-primary bg-primary-soft",
+  stock_alert: "text-status-processing bg-status-processing-bg",
   stock: "text-status-processing bg-status-processing-bg",
-  reclamation: "text-status-cancelled bg-status-cancelled-bg",
+  scheduled_delivery: "text-primary bg-primary-soft",
   scheduled: "text-primary bg-primary-soft",
-  mention: "text-status-shipped bg-status-shipped-bg",
+  reclamation: "text-status-cancelled bg-status-cancelled-bg",
 };
 
 export function NotificationCenter() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [dbNotifs, setDbNotifs] = useState<Notification[]>([]);
+  const [liveNotifs, setLiveNotifs] = useState<Notification[]>([]);
+  const [localRead, setLocalRead] = useState<Set<string>>(new Set());
 
-  const buildNotifications = useCallback(async () => {
+  // Fetch DB notifications (mentions)
+  const fetchDbNotifs = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${API}/notifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setDbNotifs(Array.isArray(data) ? data : []);
+    } catch {
+      setDbNotifs([]);
+    }
+  }, []);
+
+  // Build live notifications (stock, scheduled, reclamations)
+  const buildLiveNotifs = useCallback(async () => {
     try {
       const token = getToken();
       if (!token) return;
@@ -59,7 +83,7 @@ export function NotificationCenter() {
       const notifs: Notification[] = [];
       const now = new Date();
 
-      // 1 — Stock alerts
+      // Stock alerts
       const storesRes = await fetch(`${API}/stores`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -76,16 +100,18 @@ export function NotificationCenter() {
               id: `stock-${p.id}`,
               type: "stock",
               title: "Stock bas",
-              message: `${p.name} — ${p.quantityAvailable} unités restantes (seuil: ${p.lowStockThreshold})`,
-              href: "/products",
+              message: `${p.name} — ${p.quantityAvailable} unités restantes`,
+              link: "/products",
+              orderId: null,
+              actorName: null,
+              isRead: false,
               createdAt: p.updatedAt,
-              read: false,
             });
           }
         }
       }
 
-      // 2 — Scheduled orders (1 day before)
+      // Orders — scheduled + reclamations
       const ordersRes = await fetch(`${API}/orders?pageSize=200`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -95,21 +121,22 @@ export function NotificationCenter() {
       for (const order of orders) {
         if (order.scheduledDeliveryDate) {
           const deliveryDate = new Date(order.scheduledDeliveryDate);
-          const diffDays = Math.ceil((deliveryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const diffDays = Math.ceil((deliveryDate.getTime() - now.getTime()) / 86400000);
           if (diffDays <= 1 && diffDays >= 0) {
             notifs.push({
               id: `scheduled-${order.id}`,
               type: "scheduled",
               title: "Livraison programmée",
-              message: `${order.orderNumber} — ${order.customerName} — livraison ${diffDays === 0 ? "aujourd'hui" : "demain"}`,
-              href: "/confirmation",
-              createdAt: order.scheduledDeliveryDate!,
-              read: false,
+              message: `${order.orderNumber} — ${order.customerName} — ${diffDays === 0 ? "aujourd'hui" : "demain"}`,
+              link: "/confirmation",
+              orderId: order.id,
+              actorName: null,
+              isRead: false,
+              createdAt: order.scheduledDeliveryDate,
             });
           }
         }
 
-        // 3 — Réclamations ouvertes
         if ((order.tags ?? []).includes("Réclamation")) {
           try {
             const rec = JSON.parse(order.internalNote ?? "{}").reclamation;
@@ -119,37 +146,69 @@ export function NotificationCenter() {
                 type: "reclamation",
                 title: "Réclamation ouverte",
                 message: `${order.orderNumber} — ${order.customerName} — ${rec.type ?? ""}`,
-                href: "/reclamation",
+                link: "/reclamation",
+                orderId: order.id,
+                actorName: null,
+                isRead: false,
                 createdAt: rec.createdAt ?? order.updatedAt,
-                read: false,
               });
             }
           } catch {}
         }
       }
 
-      // Sort by date
-      notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setNotifications(notifs);
+      setLiveNotifs(notifs);
     } catch (e) {
       console.error(e);
     }
   }, []);
 
   useEffect(() => {
-    buildNotifications();
-    const interval = setInterval(buildNotifications, 60000); // refresh every minute
+    fetchDbNotifs();
+    buildLiveNotifs();
+    const interval = setInterval(() => {
+      fetchDbNotifs();
+      buildLiveNotifs();
+    }, 60000);
     return () => clearInterval(interval);
-  }, [buildNotifications]);
+  }, [fetchDbNotifs, buildLiveNotifs]);
 
-  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+  const all = [...dbNotifs, ...liveNotifs].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
-  function markAllRead() {
-    setReadIds(new Set(notifications.map((n) => n.id)));
+  const unreadCount = all.filter((n) => !n.isRead && !localRead.has(n.id)).length;
+
+  async function markAllRead() {
+    setLocalRead(new Set(all.map((n) => n.id)));
+    try {
+      await fetch(`${API}/notifications/read-all`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      fetchDbNotifs();
+    } catch {}
   }
 
-  function markRead(id: string) {
-    setReadIds((prev) => new Set([...prev, id]));
+  async function handleClick(n: Notification) {
+    setLocalRead((prev) => new Set([...prev, n.id]));
+    setOpen(false);
+
+    // Mark DB notification as read
+    if (dbNotifs.some((d) => d.id === n.id)) {
+      try {
+        await fetch(`${API}/notifications/${n.id}/read`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        fetchDbNotifs();
+      } catch {}
+    }
+
+    if (n.link) {
+      const url = n.orderId ? `${n.link}?order=${n.orderId}` : n.link;
+      router.push(url);
+    }
   }
 
   return (
@@ -188,37 +247,41 @@ export function NotificationCenter() {
             </div>
 
             <div className="max-h-96 overflow-y-auto divide-y divide-border">
-              {notifications.length === 0 ? (
+              {all.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10">
                   <Bell className="h-8 w-8 text-muted-light" />
                   <p className="mt-2 text-xs text-muted">Aucune notification</p>
                 </div>
               ) : (
-                notifications.map((n) => {
-                  const Icon = ICON_MAP[n.type];
-                  const isRead = readIds.has(n.id);
+                all.map((n) => {
+                  const Icon = ICON_MAP[n.type] ?? Package;
+                  const isRead = n.isRead || localRead.has(n.id);
                   return (
-                    <Link
+                    <button
                       key={n.id}
-                      href={n.href}
-                      onClick={() => { markRead(n.id); setOpen(false); }}
+                      onClick={() => handleClick(n)}
                       className={cn(
-                        "flex items-start gap-3 px-4 py-3 hover:bg-surface-sunken transition-colors",
+                        "flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-sunken transition-colors",
                         !isRead && "bg-primary-soft/20"
                       )}
                     >
-                      <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full", COLOR_MAP[n.type])}>
+                      <div className={cn(
+                        "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                        COLOR_MAP[n.type] ?? "bg-surface-sunken text-muted"
+                      )}>
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold">{n.title}</p>
-                        <p className="mt-0.5 text-[11px] text-muted leading-relaxed">{n.message}</p>
+                        <p className="mt-0.5 text-[11px] text-muted leading-relaxed line-clamp-2">
+                          {n.message}
+                        </p>
                         <p className="mt-1 text-[10px] text-muted-light">{timeAgo(n.createdAt)}</p>
                       </div>
                       {!isRead && (
                         <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
                       )}
-                    </Link>
+                    </button>
                   );
                 })
               )}

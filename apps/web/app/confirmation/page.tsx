@@ -14,7 +14,7 @@ import {
   isInPeriod,
   type Period,
 } from "@/components/stats/period-filter";
-
+import { MentionInput, MentionText, processMentions } from "@/components/ui/mention-input";
 import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { RouteGuard } from "@/components/auth/route-guard";
@@ -529,6 +529,13 @@ function OrderModal({
         })),
       }),
     });
+
+    // Notify mentioned users
+    await processMentions(internalNote, {
+      link: "/confirmation",
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+    });
   }
 
   async function logAttempt(cancelReason?: string, cancelNote?: string, deliveryCompany?: string, scheduledDate?: string) {
@@ -552,6 +559,11 @@ function OrderModal({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ callAttempts: updatedAttempts }),
+      });
+      await processMentions(callNote, {
+        link: "/confirmation",
+        orderId: order.id,
+        orderNumber: order.orderNumber,
       });
 
       let newStatus: OrderStatus | undefined;
@@ -755,7 +767,13 @@ function OrderModal({
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">Note interne</label>
-                  <Input value={internalNote} onChange={(e) => setInternalNote(e.target.value)} placeholder="Note pour l'équipe..." />
+                  <MentionInput
+                    value={internalNote}
+                    onChange={setInternalNote}
+                    placeholder="Note pour l'équipe... (@ pour mentionner)"
+                    multiline
+                    rows={2}
+                  />
                 </div>
               </div>
 
@@ -777,7 +795,7 @@ function OrderModal({
                         </div>
                         <p className="text-[11px] text-muted-light mt-0.5">
                           {new Date(a.date).toLocaleString("fr-FR")}
-                          {a.note && ` — ${a.note}`}
+                          {a.note && <> — <MentionText text={a.note} /></>}
                         </p>
                       </div>
                     ))}
@@ -823,6 +841,13 @@ function OrderModal({
                     </select>
                   </div>
                   <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">Note</label>
+                    <MentionInput
+                      value={callNote}
+                      onChange={setCallNote}
+                      placeholder="ex: rappeler demain (@ pour mentionner)"
+                    />
+                  </div> <div>
                     <label className="mb-1 block text-xs font-medium text-muted">Note</label>
                     <Input value={callNote} onChange={(e) => setCallNote(e.target.value)} placeholder="ex: rappeler demain matin" />
                   </div>

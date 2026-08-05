@@ -473,15 +473,9 @@ function PreparationContent() {
           </div>
         </header>
 
-       {/* Stats filters */}
-       <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <PeriodFilter period={period} onChange={setPeriod} />
-            <div className="ml-auto">
-              <AdvancedFilters filters={advFilters} onChange={setAdvFilters} orders={orders} />
-            </div>
-          </div>
-          <ActiveFilterChips filters={advFilters} onChange={setAdvFilters} />
+       {/* Period filter */}
+       <div className="border-b border-border bg-surface px-5 py-3">
+          <PeriodFilter period={period} onChange={setPeriod} />
         </div>
         {/* Stats */}
         <div className="grid grid-cols-6 gap-3 border-b border-border bg-surface p-4">
@@ -501,8 +495,9 @@ function PreparationContent() {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 border-b border-border bg-surface px-5 py-3 overflow-x-auto">
+       {/* Filters */}
+       <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
+          <div className="flex items-center gap-3 overflow-x-auto">
           <div className="relative w-64 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
             <Input
@@ -510,12 +505,13 @@ function PreparationContent() {
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Rechercher..."
               className="pl-8"
-            />
-          </div>
-          <div className="flex gap-1">
-            {[
-              { key: "all", label: "Tous", count: orders.length },
-              { key: "A_PREPARER", label: "À préparer", count: counts["A_PREPARER"] ?? 0 },
+              />
+              </div>
+              <AdvancedFilters filters={advFilters} onChange={setAdvFilters} orders={orders} />
+              <div className="flex gap-1">
+                {[
+                  { key: "all", label: "Tous", count: orders.length },
+                  { key: "A_PREPARER", label: "À préparer", count: counts["A_PREPARER"] ?? 0 },
               { key: "ECHANGE", label: "Échanges", count: counts["ECHANGE"] ?? 0 },
               { key: "EN_PREPARATION", label: "En préparation", count: counts["EN_PREPARATION"] ?? 0 },
               { key: "EMBALLE", label: "Emballés", count: counts["EMBALLE"] ?? 0 },
@@ -533,11 +529,13 @@ function PreparationContent() {
                   "rounded-full px-1.5 py-0.5 text-[10px]",
                   filter === tab.key ? "bg-primary text-white" : "bg-surface-sunken"
                 )}>
-                  {tab.count}
+                 {tab.count}
                 </span>
               </button>
             ))}
           </div>
+          </div>
+          <ActiveFilterChips filters={advFilters} onChange={setAdvFilters} />
         </div>
 
         {/* Table */}

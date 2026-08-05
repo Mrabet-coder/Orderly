@@ -1072,15 +1072,9 @@ function ConfirmationContent() {
           </div>
         </header>
 
-        {/* Stats filters */}
-        <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <PeriodFilter period={period} onChange={setPeriod} />
-            <div className="ml-auto">
-              <AdvancedFilters filters={advFilters} onChange={setAdvFilters} orders={orders} />
-            </div>
-          </div>
-          <ActiveFilterChips filters={advFilters} onChange={setAdvFilters} />
+       {/* Period filter */}
+       <div className="border-b border-border bg-surface px-5 py-3">
+          <PeriodFilter period={period} onChange={setPeriod} />
         </div>
 
         {/* Stats */}
@@ -1101,8 +1095,9 @@ function ConfirmationContent() {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 border-b border-border bg-surface px-5 py-3">
+       {/* Filters */}
+       <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
+          <div className="flex items-center gap-3">
           <div className="relative w-64">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
             <Input
@@ -1112,6 +1107,7 @@ function ConfirmationContent() {
               className="pl-8"
             />
           </div>
+          <AdvancedFilters filters={advFilters} onChange={setAdvFilters} orders={orders} />
           <div className="flex gap-1">
             {[
               { key: "all", label: "Tous", count: orders.length },
@@ -1134,8 +1130,10 @@ function ConfirmationContent() {
                 </span>
               </button>
             ))}
+            </div>
+            </div>
+            <ActiveFilterChips filters={advFilters} onChange={setAdvFilters} />
           </div>
-        </div>
 
         {/* Table */}
         <div className="flex-1 overflow-auto">

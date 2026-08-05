@@ -109,7 +109,7 @@ export function AdvancedFilters({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[380px] rounded-xl border border-border bg-surface p-4 shadow-2xl space-y-4">
+          <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[380px] max-h-[70vh] overflow-y-auto rounded-xl border border-border bg-surface p-4 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold">Filtres avancés</p>
               {activeCount > 0 && (

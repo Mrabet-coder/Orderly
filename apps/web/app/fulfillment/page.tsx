@@ -485,15 +485,9 @@ function FulfillmentContent() {
           </div>
         </header>
 
-       {/* Stats filters */}
-       <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <PeriodFilter period={period} onChange={setPeriod} />
-            <div className="ml-auto">
-              <AdvancedFilters filters={advFilters} onChange={setAdvFilters} orders={orders} />
-            </div>
-          </div>
-          <ActiveFilterChips filters={advFilters} onChange={setAdvFilters} />
+       {/* Period filter */}
+       <div className="border-b border-border bg-surface px-5 py-3">
+          <PeriodFilter period={period} onChange={setPeriod} />
         </div>
 
         {/* Stats */}
@@ -565,17 +559,21 @@ function FulfillmentContent() {
           ))}
         </div>
 
-        {/* Search */}
-        <div className="border-b border-border bg-surface px-5 py-3">
-          <div className="relative w-64">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
-            <Input
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Rechercher..."
-              className="pl-8"
-            />
+       {/* Search + filters */}
+       <div className="border-b border-border bg-surface px-5 py-3 space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="relative w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
+              <Input
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                placeholder="Rechercher..."
+                className="pl-8"
+              />
+            </div>
+            <AdvancedFilters filters={advFilters} onChange={setAdvFilters} orders={orders} />
           </div>
+          <ActiveFilterChips filters={advFilters} onChange={setAdvFilters} />
         </div>
 
         {/* Table */}

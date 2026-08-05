@@ -369,9 +369,12 @@ function FulfillmentContent() {
   }, [fetchOrders]);
 
   async function handleChangeStatus(orderId: string, status: OrderStatus) {
+    const order = orders.find((o) => o.id === orderId);
+
     setOrders((prev) =>
       prev.map((o) => o.id === orderId ? { ...o, orderStatus: status } : o)
     );
+
     await fetch(`${API}/orders/${orderId}/status`, {
       method: "PATCH",
       headers: {
@@ -380,6 +383,23 @@ function FulfillmentContent() {
       },
       body: JSON.stringify({ status }),
     });
+
+    // Exchange delivered → restock recovered items
+    const isExchange = order?.tags?.includes("Échange") || order?.orderNumber?.startsWith("#E-");
+    if (isExchange && (status === "LIVRE" || status === "PAYE")) {
+      try {
+        const res = await fetch(`${API}/orders/${orderId}/restock-exchange`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        if (data.restocked > 0) {
+          alert(`${data.restocked} produit(s) récupéré(s) remis en stock automatiquement.`);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
 
   const filtered = orders.filter((o) => {

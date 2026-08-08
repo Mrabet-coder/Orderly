@@ -23,9 +23,11 @@ import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { TagBadge } from "@/components/orders/tag-picker";
 import {
   Search, ChevronLeft, ChevronRight, Package,
   CheckCircle2, X, Printer, Archive, Plus, Truck,
+  Calendar, Phone, MapPin, History,
 } from "lucide-react";
 import { Order, OrderStatus } from "@/types/order";
 
@@ -356,8 +358,317 @@ function ArchiveModal({
     </div>
   );
 }
+function OrderDetailModal({
+  order,
+  onClose,
+  onChangeStatus,
+  onArchive,
+}: {
+  order: Order;
+  onClose: () => void;
+  onChangeStatus: (status: OrderStatus) => void;
+  onArchive: () => void;
+}) {
+  const [events, setEvents] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API}/orders/${order.id}/events`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        setEvents(Array.isArray(data) ? data : []);
+      } catch {
+        setEvents([]);
+      } finally {
+        setLoadingEvents(false);
+      }
+    })();
+  }, [order.id]);
+
+  const addr = order.shippingAddress as any;
+  const isExchange = order.orderStatus === "ECHANGE" || (order.tags ?? []).includes("Échange");
+
+  // Exchange metadata
+  let exchangeMeta: any = null;
+  try {
+    const parsed = JSON.parse(order.internalNote ?? "{}");
+    exchangeMeta = parsed.exchange ?? null;
+  } catch {}
+
+  const plainNote = (() => {
+    try {
+      JSON.parse(order.internalNote ?? "");
+      return null;
+    } catch {
+      return order.internalNote;
+    }
+  })();
+
+  const scheduledDate = order.scheduledDeliveryDate
+    ? new Date(order.scheduledDeliveryDate)
+    : null;
+  const daysUntil = scheduledDate
+    ? Math.ceil((scheduledDate.getTime() - Date.now()) / 86400000)
+    : null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
+      <div className="w-full max-w-3xl rounded-xl border border-border bg-surface shadow-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-border px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-mono text-base font-semibold">{order.orderNumber}</h2>
+              <span className={cn(
+                "rounded px-2 py-0.5 text-xs font-medium",
+                STATUS_STYLE[order.orderStatus] ?? "bg-surface-sunken text-muted"
+              )}>
+                {STATUS_LABEL[order.orderStatus] ?? order.orderStatus}
+              </span>
+              {isExchange && (
+                <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                  Échange
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted">
+              {order.storeName} · Créée le {formatDate(order.sourceCreatedAt)}
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-surface-sunken">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+          {/* Scheduled date — highly visible */}
+          {scheduledDate && (
+            <div className="flex items-center gap-3 rounded-xl border-2 border-primary bg-primary-soft px-4 py-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                  Livraison programmée
+                </p>
+                <p className="text-sm font-semibold text-primary">
+                  {scheduledDate.toLocaleDateString("fr-FR", {
+                    weekday: "long", day: "numeric", month: "long", year: "numeric",
+                  })}
+                </p>
+                <p className="text-[11px] text-primary/70">
+                  {daysUntil === 0 ? "Aujourd'hui" :
+                   daysUntil === 1 ? "Demain" :
+                   daysUntil && daysUntil > 0 ? `Dans ${daysUntil} jours` :
+                   "Date dépassée"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Exchange info */}
+          {exchangeMeta && (
+            <div className="rounded-xl border-2 border-purple-300 bg-purple-50 px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-purple-700 mb-2">
+                Produits à récupérer chez le client
+              </p>
+              <div className="space-y-1">
+                {exchangeMeta.itemsToRecover?.map((it: any, i: number) => (
+                  <p key={i} className="text-sm font-medium text-purple-900">
+                    {it.title}{it.variantTitle ? ` — ${it.variantTitle}` : ""} × {it.quantity}
+                  </p>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-purple-700">
+                Commande d'origine : {exchangeMeta.originalOrderNumber} · Raison : {exchangeMeta.reason}
+              </p>
+            </div>
+          )}
+
+          {/* Tags */}
+          {(order.tags ?? []).length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">Tags</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(order.tags ?? []).map((t) => (
+                  <TagBadge key={t} tag={t} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Two columns */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Client */}
+            <div className="rounded-lg border border-border p-3.5 space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Client</p>
+              <p className="text-sm font-semibold">{order.customerName ?? "—"}</p>
+              <div className="space-y-1 text-xs">
+                <p className="flex items-center gap-1.5 font-mono text-muted">
+                  <Phone className="h-3 w-3" /> {order.customerPhone ?? "—"}
+                </p>
+                {order.customerPhone2 && (
+                  <p className="flex items-center gap-1.5 font-mono text-muted">
+                    <Phone className="h-3 w-3" /> {order.customerPhone2}
+                  </p>
+                )}
+                {addr && (
+                  <p className="flex items-start gap-1.5 text-muted">
+                    <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                    <span>
+                      {addr.address1 ?? ""}{addr.address1 && addr.city ? ", " : ""}{addr.city ?? ""}
+                      {addr.province ? ` (${addr.province})` : ""}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Delivery */}
+            <div className="rounded-lg border border-border p-3.5 space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Livraison</p>
+              <p className="flex items-center gap-1.5 text-sm font-semibold">
+                <Truck className="h-3.5 w-3.5 text-muted" />
+                {order.deliveryCompany ?? "Non défini"}
+              </p>
+              {order.trackingNumber && (
+                <p className="font-mono text-xs text-muted">
+                  Tracking : {order.trackingNumber}
+                </p>
+              )}
+              <div className="pt-1">
+                <p className="text-[11px] text-muted">Montant à encaisser</p>
+                <p className="font-mono text-lg font-bold text-status-delivered">
+                  {formatMoney(order.total, order.currency)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Products */}
+          <div className="rounded-lg border border-border">
+            <div className="border-b border-border px-3.5 py-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+                Articles ({order.lineItems?.length ?? 0})
+              </p>
+            </div>
+            <div className="divide-y divide-border">
+              {order.lineItems?.map((li) => (
+                <div key={li.id} className="flex items-center gap-3 px-3.5 py-2.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-sunken">
+                    <Package className="h-3.5 w-3.5 text-muted-light" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {li.title}
+                      {li.variantTitle && (
+                        <span className="ml-1 text-xs text-muted">— {li.variantTitle}</span>
+                      )}
+                    </p>
+                    <p className="font-mono text-[11px] text-muted">
+                      {li.sku || "sans SKU"} · Qté {li.quantity}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-mono text-sm font-medium">
+                    {formatMoney(Number(li.price) * li.quantity, order.currency)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Note */}
+          {plainNote && (
+            <div className="rounded-lg border border-border p-3.5">
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">Note interne</p>
+              <p className="text-xs">{plainNote}</p>
+            </div>
+          )}
+
+          {/* History */}
+          <div className="rounded-lg border border-border">
+            <div className="border-b border-border px-3.5 py-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted flex items-center gap-1.5">
+                <History className="h-3 w-3" />
+                Historique
+              </p>
+            </div>
+            <div className="max-h-40 overflow-y-auto p-3.5">
+              {loadingEvents ? (
+                <p className="text-xs text-muted">Chargement...</p>
+              ) : events.length === 0 ? (
+                <p className="text-xs text-muted">Aucun événement</p>
+              ) : (
+                <div className="space-y-2">
+                  {events.map((e) => (
+                    <div key={e.id} className="flex items-start gap-2">
+                      <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-medium">
+                          {e.eventType === "status_changed"
+                            ? `Statut → ${STATUS_LABEL[e.payload?.to] ?? e.payload?.to ?? ""}`
+                            : e.eventType === "order_edited"
+                            ? "Commande modifiée"
+                            : e.eventType === "order_created_manual"
+                            ? "Créée manuellement"
+                            : e.eventType === "exchange_created"
+                            ? "Échange créé"
+                            : e.eventType}
+                        </p>
+                        <p className="text-[10px] text-muted-light">
+                          {e.actorName} · {new Date(e.createdAt).toLocaleString("fr-FR")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 border-t border-border px-5 py-4">
+          <Button variant="secondary" onClick={onClose}>Fermer</Button>
+          <Button variant="outline" onClick={() => openBordereau(order.id)}>
+            <Printer className="h-3.5 w-3.5" />
+            Bordereau
+          </Button>
+          <div className="flex-1" />
+          {(order.orderStatus === "A_PREPARER" || order.orderStatus === "ECHANGE") && (
+            <Button onClick={() => { onChangeStatus("EN_PREPARATION"); onClose(); }}>
+              <Printer className="h-3.5 w-3.5" />
+              Imprimer
+            </Button>
+          )}
+          {order.orderStatus === "EN_PREPARATION" && (
+            <Button onClick={() => { onChangeStatus("EMBALLE"); onClose(); }}>
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Emballé
+            </Button>
+          )}
+          {order.orderStatus === "EMBALLE" && (
+            <Button onClick={() => { onChangeStatus("AU_DEPOT_LIVREUR"); onClose(); }}>
+              <Truck className="h-3.5 w-3.5" />
+              Au dépôt
+            </Button>
+          )}
+          <Button variant="destructive" onClick={() => { onArchive(); onClose(); }}>
+            <Archive className="h-3.5 w-3.5" />
+            Archiver
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function PreparationContent() {
+
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const { canAccessStore } = useAuth();
   const { stores } = useStores();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -620,15 +931,16 @@ function PreparationContent() {
               </thead>
               <tbody>
                 {pageOrders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className={cn(
-                      "border-b border-border transition-colors hover:bg-surface-sunken",
-                      selectedIds.has(order.id) && "bg-primary-soft/30",
-                      order.orderStatus === "ECHANGE" && "bg-purple-50/30"
-                    )}
-                  >
-                    <td className="px-4 py-3">
+                 <tr
+                 key={order.id}
+                 onClick={() => setDetailOrder(order)}
+                 className={cn(
+                   "cursor-pointer border-b border-border transition-colors hover:bg-surface-sunken",
+                   selectedIds.has(order.id) && "bg-primary-soft/30",
+                   order.orderStatus === "ECHANGE" && "bg-purple-50/30"
+                 )}
+               >
+                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(order.id)}
@@ -669,7 +981,7 @@ function PreparationContent() {
                         {STATUS_LABEL[order.orderStatus] ?? order.orderStatus}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5">
                         {/* À PRÉPARER / ÉCHANGE → Imprimer → EN_PREPARATION */}
                         {(order.orderStatus === "A_PREPARER" || order.orderStatus === "ECHANGE") && (
@@ -756,7 +1068,14 @@ function PreparationContent() {
           }}
         />
       )}
-
+{detailOrder && (
+        <OrderDetailModal
+          order={detailOrder}
+          onClose={() => setDetailOrder(null)}
+          onChangeStatus={(status) => changeStatus(detailOrder.id, status)}
+          onArchive={() => setArchiveOrder(detailOrder)}
+        />
+      )}
 {showCreate && (
         <CreateOrderModal
           stores={accessibleStores}

@@ -14,7 +14,7 @@ import {
   isInPeriod,
   type Period,
 } from "@/components/stats/period-filter";
-
+import { ProductPicker, StorePicker, useStoreProducts, type StoreProduct } from "@/components/orders/product-picker";
 import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { RouteGuard } from "@/components/auth/route-guard";
@@ -84,34 +84,51 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function CreateOrderModal({
-  storeId,
+  stores,
   onClose,
   onCreated,
 }: {
-  storeId: string;
+  stores: { id: string; name: string }[];
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
   const [deliveryCompany, setDeliveryCompany] = useState("");
-  const [products, setProducts] = useState([{ title: "", quantity: 1, price: 0 }]);
+  const [products, setProducts] = useState<{ title: string; sku: string; quantity: number; price: number }[]>([
+    { title: "", sku: "", quantity: 1, price: 0 },
+  ]);
   const [loading, setLoading] = useState(false);
+
+  const { products: storeProducts, loading: loadingProducts } = useStoreProducts(storeId);
 
   const total = products.reduce((s, p) => s + p.price * p.quantity, 0);
 
-  function updateProduct(idx: number, field: string, value: any) {
-    setProducts((prev) => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  function updateProduct(idx: number, patch: Partial<typeof products[0]>) {
+    setProducts((prev) => prev.map((p, i) => i === idx ? { ...p, ...patch } : p));
   }
 
   function addProduct() {
-    setProducts((prev) => [...prev, { title: "", quantity: 1, price: 0 }]);
+    setProducts((prev) => [...prev, { title: "", sku: "", quantity: 1, price: 0 }]);
   }
 
   function removeProduct(idx: number) {
     setProducts((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleProductSelect(idx: number, product: StoreProduct | null, rawText: string) {
+    if (product) {
+      updateProduct(idx, {
+        title: product.name,
+        sku: product.sku,
+        price: product.price ?? products[idx].price,
+      });
+    } else {
+      updateProduct(idx, { title: rawText, sku: "" });
+    }
   }
 
   async function create() {
@@ -146,6 +163,10 @@ function CreateOrderModal({
     }
   }
 
+  const canCreate =
+    storeId && name.trim() && phone.trim() && deliveryCompany &&
+    products.some((p) => p.title.trim());
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
       <div className="w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl max-h-[90vh] flex flex-col">
@@ -157,10 +178,19 @@ function CreateOrderModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Store */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Magasin</label>
+            <StorePicker stores={stores} value={storeId} onChange={(id) => {
+              setStoreId(id);
+              setProducts([{ title: "", sku: "", quantity: 1, price: 0 }]);
+            }} />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Nom client</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet" autoFocus />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Téléphone</label>
@@ -201,40 +231,65 @@ function CreateOrderModal({
           {/* Products */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-muted">Produits</label>
+              <label className="text-xs font-medium text-muted">
+                Produits
+                {storeId && (
+                  <span className="ml-1 text-[10px] text-muted-light">
+                    ({storeProducts.length} disponibles)
+                  </span>
+                )}
+              </label>
               <button onClick={addProduct} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
                 <Plus className="h-3 w-3" /> Ajouter
               </button>
             </div>
+
+            {!storeId && (
+              <p className="rounded-lg bg-surface-sunken px-3 py-2 text-xs text-muted">
+                Choisissez un magasin pour voir ses produits
+              </p>
+            )}
+
             <div className="space-y-2">
               {products.map((p, idx) => (
-                <div key={idx} className="flex items-center gap-2 rounded-lg border border-border p-2">
-                  <Input
-                    value={p.title}
-                    onChange={(e) => updateProduct(idx, "title", e.target.value)}
-                    placeholder="Nom produit"
-                    className="flex-1 h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.quantity}
-                    onChange={(e) => updateProduct(idx, "quantity", parseInt(e.target.value) || 1)}
-                    min={1}
-                    className="w-16 h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.price}
-                    onChange={(e) => updateProduct(idx, "price", parseFloat(e.target.value) || 0)}
-                    min={0}
-                    step="0.001"
-                    className="w-24 h-8 text-xs"
-                  />
-                  {products.length > 1 && (
-                    <button onClick={() => removeProduct(idx)} className="text-muted hover:text-status-cancelled">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                <div key={idx} className="rounded-lg border border-border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ProductPicker
+                      value={p.title}
+                      onSelect={(prod, raw) => handleProductSelect(idx, prod, raw)}
+                      products={storeProducts}
+                      loading={loadingProducts}
+                      className="flex-1"
+                    />
+                    {products.length > 1 && (
+                      <button onClick={() => removeProduct(idx)} className="text-muted hover:text-status-cancelled">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted">Quantité</label>
+                      <Input
+                        type="number"
+                        value={p.quantity}
+                        onChange={(e) => updateProduct(idx, { quantity: parseInt(e.target.value) || 1 })}
+                        min={1}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted">Prix unitaire</label>
+                      <Input
+                        type="number"
+                        value={p.price}
+                        onChange={(e) => updateProduct(idx, { price: parseFloat(e.target.value) || 0 })}
+                        min={0}
+                        step="0.001"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -248,11 +303,7 @@ function CreateOrderModal({
 
         <div className="flex gap-2 border-t border-border px-5 py-4">
           <Button variant="secondary" className="flex-1" onClick={onClose}>Annuler</Button>
-          <Button
-            className="flex-1"
-            disabled={loading || !name.trim() || !phone.trim() || !deliveryCompany || !products.some((p) => p.title.trim())}
-            onClick={create}
-          >
+          <Button className="flex-1" disabled={loading || !canCreate} onClick={create}>
             <Plus className="h-3.5 w-3.5" />
             {loading ? "Création..." : "Créer la commande"}
           </Button>
@@ -706,9 +757,9 @@ function PreparationContent() {
         />
       )}
 
-      {showCreate && activeStore && (
+{showCreate && (
         <CreateOrderModal
-          storeId={activeStore.id}
+          stores={accessibleStores}
           onClose={() => setShowCreate(false)}
           onCreated={fetchOrders}
         />

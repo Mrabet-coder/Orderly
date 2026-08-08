@@ -14,6 +14,7 @@ import {
   isInPeriod,
   type Period,
 } from "@/components/stats/period-filter";
+import { ProductPicker, StorePicker, useStoreProducts, type StoreProduct } from "@/components/orders/product-picker";
 import { MentionInput, MentionText, processMentions } from "@/components/ui/mention-input";
 import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -30,7 +31,6 @@ import {
 import { Order, OrderStatus, CallAttempt } from "@/types/order";
 import { OrderStatusBadge } from "@/components/orders/status-badge";
 import { TagBadge, TagPicker } from "@/components/orders/tag-picker";
-import { ExchangeModal } from "@/components/orders/exchange-modal";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
@@ -109,34 +109,52 @@ function CallStatusBadge({ attempts }: { attempts: CallAttempt[] }) {
 }
 
 function CreateOrderModal({
-  storeId,
+  stores,
   onClose,
   onCreated,
 }: {
-  storeId: string;
+  stores: { id: string; name: string }[];
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
-  const [products, setProducts] = useState([{ title: "", quantity: 1, price: 0 }]);
+  const [isExchange, setIsExchange] = useState(false);
+  const [products, setProducts] = useState<{ title: string; sku: string; quantity: number; price: number }[]>([
+    { title: "", sku: "", quantity: 1, price: 0 },
+  ]);
   const [loading, setLoading] = useState(false);
 
-  const total = products.reduce((s, p) => s + p.price * p.quantity, 0);
+  const { products: storeProducts, loading: loadingProducts } = useStoreProducts(storeId);
 
-  function updateProduct(idx: number, field: string, value: any) {
-    setProducts((prev) => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  const total = isExchange ? 0 : products.reduce((s, p) => s + p.price * p.quantity, 0);
+
+  function updateProduct(idx: number, patch: Partial<typeof products[0]>) {
+    setProducts((prev) => prev.map((p, i) => i === idx ? { ...p, ...patch } : p));
   }
 
   function addProduct() {
-    setProducts((prev) => [...prev, { title: "", quantity: 1, price: 0 }]);
+    setProducts((prev) => [...prev, { title: "", sku: "", quantity: 1, price: 0 }]);
   }
 
   function removeProduct(idx: number) {
     setProducts((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleProductSelect(idx: number, product: StoreProduct | null, rawText: string) {
+    if (product) {
+      updateProduct(idx, {
+        title: product.name,
+        sku: product.sku,
+        price: isExchange ? 0 : (product.price ?? products[idx].price),
+      });
+    } else {
+      updateProduct(idx, { title: rawText, sku: "" });
+    }
   }
 
   async function create() {
@@ -158,8 +176,11 @@ function CreateOrderModal({
           subtotal: total,
           total,
           source: "manual",
-          orderStatus: "NOUVEAU",
-          lineItems: products.filter((p) => p.title.trim()),
+          orderStatus: isExchange ? "ECHANGE" : "NOUVEAU",
+          tags: isExchange ? ["Échange"] : [],
+          lineItems: products
+            .filter((p) => p.title.trim())
+            .map((p) => ({ ...p, price: isExchange ? 0 : p.price })),
         }),
       });
       onCreated();
@@ -171,13 +192,17 @@ function CreateOrderModal({
     }
   }
 
+  const canCreate = storeId && name.trim() && phone.trim() && products.some((p) => p.title.trim());
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
       <div className="w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="text-sm font-semibold">Créer une commande</h2>
-            <p className="text-xs text-muted">La commande sera à confirmer par téléphone</p>
+            <p className="text-xs text-muted">
+              {isExchange ? "Échange — prix à 0" : "À confirmer par téléphone"}
+            </p>
           </div>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-surface-sunken">
             <X className="h-4 w-4" />
@@ -185,10 +210,54 @@ function CreateOrderModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Exchange toggle */}
+          <label
+            className={cn(
+              "flex cursor-pointer items-center gap-3 rounded-lg border-2 px-3 py-2.5 transition-colors",
+              isExchange ? "border-purple-400 bg-purple-50" : "border-border hover:border-border-strong"
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={isExchange}
+              onChange={(e) => {
+                setIsExchange(e.target.checked);
+                if (e.target.checked) {
+                  setProducts((prev) => prev.map((p) => ({ ...p, price: 0 })));
+                }
+              }}
+              className="h-4 w-4 accent-purple-600"
+            />
+            <div className="flex items-center gap-2">
+              <ArrowRightLeft className={cn("h-4 w-4", isExchange ? "text-purple-600" : "text-muted")} />
+              <div>
+                <p className={cn("text-xs font-medium", isExchange && "text-purple-700")}>
+                  C'est un échange
+                </p>
+                <p className="text-[11px] text-muted">
+                  Prix à 0, la commande part directement en préparation
+                </p>
+              </div>
+            </div>
+          </label>
+
+          {/* Store */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Magasin</label>
+            <StorePicker
+              stores={stores}
+              value={storeId}
+              onChange={(id) => {
+                setStoreId(id);
+                setProducts([{ title: "", sku: "", quantity: 1, price: 0 }]);
+              }}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted">Nom client</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet" autoFocus />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom complet" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">Téléphone 1</label>
@@ -208,62 +277,96 @@ function CreateOrderModal({
             </div>
           </div>
 
+          {/* Products */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-muted">Produits</label>
+              <label className="text-xs font-medium text-muted">
+                Produits
+                {storeId && (
+                  <span className="ml-1 text-[10px] text-muted-light">
+                    ({storeProducts.length} disponibles)
+                  </span>
+                )}
+              </label>
               <button onClick={addProduct} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
                 <Plus className="h-3 w-3" /> Ajouter
               </button>
             </div>
+
+            {!storeId && (
+              <p className="rounded-lg bg-surface-sunken px-3 py-2 text-xs text-muted">
+                Choisissez un magasin pour voir ses produits
+              </p>
+            )}
+
             <div className="space-y-2">
               {products.map((p, idx) => (
-                <div key={idx} className="flex items-center gap-2 rounded-lg border border-border p-2">
-                  <Input
-                    value={p.title}
-                    onChange={(e) => updateProduct(idx, "title", e.target.value)}
-                    placeholder="Nom produit"
-                    className="flex-1 h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.quantity}
-                    onChange={(e) => updateProduct(idx, "quantity", parseInt(e.target.value) || 1)}
-                    min={1}
-                    className="w-16 h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.price}
-                    onChange={(e) => updateProduct(idx, "price", parseFloat(e.target.value) || 0)}
-                    min={0}
-                    step="0.001"
-                    className="w-24 h-8 text-xs"
-                  />
-                  {products.length > 1 && (
-                    <button onClick={() => removeProduct(idx)} className="text-muted hover:text-status-cancelled">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                <div key={idx} className="rounded-lg border border-border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ProductPicker
+                      value={p.title}
+                      onSelect={(prod, raw) => handleProductSelect(idx, prod, raw)}
+                      products={storeProducts}
+                      loading={loadingProducts}
+                      className="flex-1"
+                    />
+                    {products.length > 1 && (
+                      <button onClick={() => removeProduct(idx)} className="text-muted hover:text-status-cancelled">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted">Quantité</label>
+                      <Input
+                        type="number"
+                        value={p.quantity}
+                        onChange={(e) => updateProduct(idx, { quantity: parseInt(e.target.value) || 1 })}
+                        min={1}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted">Prix unitaire</label>
+                      <Input
+                        type="number"
+                        value={isExchange ? 0 : p.price}
+                        onChange={(e) => updateProduct(idx, { price: parseFloat(e.target.value) || 0 })}
+                        min={0}
+                        step="0.001"
+                        disabled={isExchange}
+                        className="h-8 text-xs disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex justify-between items-center rounded-lg bg-surface-sunken px-3 py-2">
-            <span className="text-xs font-medium text-muted">Total</span>
-            <span className="font-mono text-sm font-bold">{total.toFixed(3)} TND</span>
+          <div className={cn(
+            "flex justify-between items-center rounded-lg px-3 py-2",
+            isExchange ? "bg-purple-50" : "bg-surface-sunken"
+          )}>
+            <span className={cn("text-xs font-medium", isExchange ? "text-purple-700" : "text-muted")}>
+              {isExchange ? "Total (échange)" : "Total"}
+            </span>
+            <span className={cn("font-mono text-sm font-bold", isExchange && "text-purple-700")}>
+              {total.toFixed(3)} TND
+            </span>
           </div>
         </div>
 
         <div className="flex gap-2 border-t border-border px-5 py-4">
           <Button variant="secondary" className="flex-1" onClick={onClose}>Annuler</Button>
           <Button
-            className="flex-1"
-            disabled={loading || !name.trim() || !phone.trim() || !products.some((p) => p.title.trim())}
+            className={cn("flex-1", isExchange && "bg-purple-600 hover:bg-purple-700")}
+            disabled={loading || !canCreate}
             onClick={create}
           >
-            <Plus className="h-3.5 w-3.5" />
-            {loading ? "Création..." : "Créer la commande"}
+            {isExchange ? <ArrowRightLeft className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {loading ? "Création..." : isExchange ? "Créer l'échange" : "Créer la commande"}
           </Button>
         </div>
       </div>
@@ -925,7 +1028,6 @@ function ConfirmationContent() {
   const [archiveOrder, setArchiveOrder] = useState<Order | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [detectingLoyal, setDetectingLoyal] = useState(false);
-  const [exchangeOrder, setExchangeOrder] = useState<Order | null>(null);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "refused" | "a_verifier">("all");
   const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
@@ -1264,13 +1366,7 @@ function ConfirmationContent() {
                             <Phone className="h-3.5 w-3.5" />
                             {isAVerifier ? "Vérifier" : isConfirmed ? "Modifier" : attempts.length === 0 ? "Appeler" : `T.${attempts.length + 1}`}
                           </Button>
-                          <button
-                            onClick={() => setExchangeOrder(order)}
-                            className="rounded-md p-1.5 text-muted hover:bg-purple-50 hover:text-purple-600"
-                            title="Créer un échange"
-                          >
-                            <ArrowRightLeft className="h-3.5 w-3.5" />
-                          </button>
+                         
                           <button
                             onClick={() => setArchiveOrder(order)}
                             className="rounded-md p-1.5 text-muted hover:bg-status-cancelled-bg hover:text-status-cancelled"
@@ -1344,20 +1440,10 @@ function ConfirmationContent() {
           }}
         />
       )}
-{exchangeOrder && (
-        <ExchangeModal
-          order={exchangeOrder}
-          onClose={() => setExchangeOrder(null)}
-          onCreated={(num) => {
-            alert(`Échange créé : ${num}\nLa commande apparaît maintenant dans Préparation.`);
-            fetchOrders();
-            setExchangeOrder(null);
-          }}
-        />
-      )}
-      {showCreate && activeStore && (
+
+      {showCreate && (
         <CreateOrderModal
-          storeId={activeStore.id}
+          stores={accessibleStores}
           onClose={() => setShowCreate(false)}
           onCreated={fetchOrders}
         />

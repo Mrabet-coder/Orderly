@@ -109,7 +109,7 @@ export class OrdersService {
         shippingTotal: 0,
         total: data.total ?? 0,
         totalRefunded: 0,
-        tags: [data.source ?? 'manual'],
+        tags: data.tags?.length ? data.tags : [data.source ?? 'manual'],
         deliveryCompany: data.deliveryCompany ?? null,
         sourceCreatedAt: new Date(),
         lineItems: {

@@ -13,6 +13,7 @@ export interface AdvancedFilterState {
   product: string;
   priceMin: string;
   priceMax: string;
+  agent: string;
 }
 
 export const EMPTY_FILTERS: AdvancedFilterState = {
@@ -21,6 +22,7 @@ export const EMPTY_FILTERS: AdvancedFilterState = {
   product: "all",
   priceMin: "",
   priceMax: "",
+  agent: "all",
 };
 
 export function applyAdvancedFilters(order: Order, f: AdvancedFilterState): boolean {
@@ -35,6 +37,8 @@ export function applyAdvancedFilters(order: Order, f: AdvancedFilterState): bool
   if (f.priceMin && total < parseFloat(f.priceMin)) return false;
   if (f.priceMax && total > parseFloat(f.priceMax)) return false;
 
+  if (f.agent !== "all" && (order as any).assignedAgentName !== f.agent) return false;
+
   return true;
 }
 
@@ -44,7 +48,8 @@ export function countActiveFilters(f: AdvancedFilterState): number {
     (f.deliveryCompany !== "all" ? 1 : 0) +
     (f.product !== "all" ? 1 : 0) +
     (f.priceMin ? 1 : 0) +
-    (f.priceMax ? 1 : 0)
+    (f.priceMax ? 1 : 0) +
+    (f.agent !== "all" ? 1 : 0)
   );
 }
 
@@ -75,7 +80,9 @@ export function AdvancedFilters({
       ...orders.flatMap((o) => o.tags ?? []),
     ])
   );
-
+  const agents = Array.from(
+    new Set(orders.map((o) => (o as any).assignedAgentName).filter(Boolean))
+  ) as string[];
   function toggleTag(tag: string) {
     onChange({
       ...filters,
@@ -174,7 +181,20 @@ export function AdvancedFilters({
                 ))}
               </select>
             </div>
-
+{/* Agent */}
+<div>
+              <label className="mb-1.5 block text-[11px] font-medium text-muted">Agent</label>
+              <select
+                value={filters.agent}
+                onChange={(e) => onChange({ ...filters, agent: e.target.value })}
+                className="h-8 w-full rounded-md border border-border bg-surface px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <option value="all">Tous les agents</option>
+                {agents.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
             {/* Price range */}
             <div>
               <label className="mb-1.5 block text-[11px] font-medium text-muted">Fourchette de prix (TND)</label>
@@ -232,7 +252,12 @@ export function ActiveFilterChips({
       onRemove: () => onChange({ ...filters, product: "all" }),
     });
   }
-
+  if (filters.agent !== "all") {
+    chips.push({
+      label: `Agent : ${filters.agent}`,
+      onRemove: () => onChange({ ...filters, agent: "all" }),
+    });
+  }
   if (filters.priceMin) {
     chips.push({
       label: `Min : ${filters.priceMin} TND`,

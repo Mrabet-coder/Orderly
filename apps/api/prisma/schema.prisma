@@ -122,6 +122,9 @@ model Order {
 
   deliveryCompany       String?
   scheduledDeliveryDate DateTime?
+  assignedAgentId       String?
+  assignedAgentName     String?
+  confirmedAt           DateTime?
 
   lineItems         OrderLineItem[]
   fulfillments      Fulfillment[]

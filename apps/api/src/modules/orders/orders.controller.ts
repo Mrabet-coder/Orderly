@@ -130,6 +130,18 @@ restockExchange(
 ) {
   return this.orders.restockExchangeItems(id, req.user.id);
 }
+@Get('stats/agents')
+getAgentStats(
+  @Query('from') from?: string,
+  @Query('to') to?: string,
+  @Query('storeIds') storeIds?: string,
+) {
+  return this.orders.getAgentStats({
+    from,
+    to,
+    storeIds: storeIds ? storeIds.split(',') : undefined,
+  });
+}
   @Get(':id/events')
   getEvents(@Param('id') id: string) {
     return this.orders.getOrderEvents(id);

@@ -91,9 +91,17 @@ export class OrdersService {
 
   async createManual(data: any, actorId: string) {
     const orderNumber = `#M${Date.now().toString().slice(-6)}`;
-
+    let agentName: string | null = null;
+    if (actorId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: actorId },
+        select: { name: true },
+      });
+      agentName = user?.name ?? null;
+    }
     const order = await this.prisma.order.create({
       data: {
+        assignedAgentName: agentName,
         storeId: data.storeId,
         externalOrderId: `manual_${Date.now()}`,
         orderNumber,
@@ -110,6 +118,7 @@ export class OrdersService {
         total: data.total ?? 0,
         totalRefunded: 0,
         tags: data.tags?.length ? data.tags : [data.source ?? 'manual'],
+        assignedAgentId: actorId ?? null,
         deliveryCompany: data.deliveryCompany ?? null,
         sourceCreatedAt: new Date(),
         lineItems: {
@@ -468,12 +477,34 @@ export class OrdersService {
     actorId: string,
     extra?: { reason?: string; note?: string },
   ) {
+    // Resolve agent name
+    let agentName: string | null = null;
+    if (actorId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: actorId },
+        select: { name: true },
+      });
+      agentName = user?.name ?? null;
+    }
+
+    // Assign agent on confirmation-related statuses
+    const assignStatuses: OrderStatus[] = [
+      'CONFIRME', 'A_PREPARER', 'ECHANGE', 'ANNULE', 'CONFIRMATION_EN_COURS',
+    ];
+    const shouldAssign = assignStatuses.includes(status);
+    const isConfirmed = status === 'A_PREPARER' || status === 'CONFIRME' || status === 'ECHANGE';
+
     const order = await this.prisma.order.update({
       where: { id: orderId },
       data: {
         orderStatus: status,
         ...(extra?.reason && { cancellationReason: extra.reason }),
         ...(extra?.note && { cancellationNote: extra.note }),
+        ...(shouldAssign && actorId && {
+          assignedAgentId: actorId,
+          assignedAgentName: agentName,
+        }),
+        ...(isConfirmed && { confirmedAt: new Date() }),
       },
     });
 
@@ -612,4 +643,70 @@ export class OrdersService {
       products: products.slice(0, 5),
       confidence,
     };
+  }async getAgentStats(query: { from?: string; to?: string; storeIds?: string[] }) {
+    const where: any = {
+      assignedAgentId: { not: null },
+    };
+    if (query.storeIds?.length) where.storeId = { in: query.storeIds };
+    if (query.from || query.to) {
+      where.sourceCreatedAt = {};
+      if (query.from) where.sourceCreatedAt.gte = new Date(query.from);
+      if (query.to) where.sourceCreatedAt.lte = new Date(query.to);
+    }
+  
+    const orders = await this.prisma.order.findMany({
+      where,
+      select: {
+        assignedAgentId: true,
+        assignedAgentName: true,
+        orderStatus: true,
+        total: true,
+        callAttempts: true,
+      },
+    });
+  
+    const byAgent: Record<string, any> = {};
+  
+    for (const o of orders) {
+      const id = o.assignedAgentId!;
+      if (!byAgent[id]) {
+        byAgent[id] = {
+          agentId: id,
+          agentName: o.assignedAgentName ?? 'Inconnu',
+          total: 0,
+          confirmed: 0,
+          refused: 0,
+          pending: 0,
+          revenue: 0,
+          totalAttempts: 0,
+        };
+      }
+      const a = byAgent[id];
+      a.total++;
+  
+      const attempts = (o.callAttempts as any[]) ?? [];
+      a.totalAttempts += attempts.length;
+  
+      const isConfirmed = attempts.some((x) => x.result === 'ANSWERED_CONFIRMED');
+      const isRefused =
+        attempts.some((x) => x.result === 'ANSWERED_REFUSED') || o.orderStatus === 'ANNULE';
+  
+      if (isConfirmed) {
+        a.confirmed++;
+        a.revenue += Number(o.total);
+      } else if (isRefused) {
+        a.refused++;
+      } else {
+        a.pending++;
+      }
+    }
+  
+    return Object.values(byAgent)
+      .map((a: any) => ({
+        ...a,
+        confirmationRate: a.total > 0 ? Math.round((a.confirmed / a.total) * 100) : 0,
+        refusalRate: a.total > 0 ? Math.round((a.refused / a.total) * 100) : 0,
+        avgAttempts: a.total > 0 ? +(a.totalAttempts / a.total).toFixed(1) : 0,
+      }))
+      .sort((x: any, y: any) => y.total - x.total);
   }}

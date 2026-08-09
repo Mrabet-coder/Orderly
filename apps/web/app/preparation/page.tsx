@@ -925,6 +925,7 @@ function PreparationContent() {
                   <th className="px-4 py-2.5">Articles</th>
                   <th className="px-4 py-2.5">Montant</th>
                   <th className="px-4 py-2.5">Livreur</th>
+                  <th className="px-4 py-2.5">Agent</th>
                   <th className="px-4 py-2.5">Statut</th>
                   <th className="px-4 py-2.5">Actions</th>
                 </tr>
@@ -972,6 +973,18 @@ function PreparationContent() {
                     </td>
                     <td className="px-4 py-3 text-xs text-muted">
                       {order.deliveryCompany ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {order.assignedAgentName ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white">
+                            {order.assignedAgentName[0]?.toUpperCase()}
+                          </div>
+                          <span className="text-xs truncate max-w-[80px]">{order.assignedAgentName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-light">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn(

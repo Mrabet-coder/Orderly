@@ -117,6 +117,9 @@ export interface Order {
   carrier: string | null;
   sourceCreatedAt: string;
   updatedAt: string;
+  assignedAgentId?: string | null;
+  assignedAgentName?: string | null;
+  confirmedAt?: string | null;
 }
 
 export interface Store {

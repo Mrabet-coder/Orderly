@@ -1281,6 +1281,7 @@ function ConfirmationContent() {
                   <th className="px-4 py-2.5">Statut</th>
                   <th className="px-4 py-2.5">Appel</th>
                   <th className="px-4 py-2.5">Livreur</th>
+                  <th className="px-4 py-2.5">Agent</th>
                   <th className="px-4 py-2.5">Tags</th>
                   <th className="px-4 py-2.5">Actions</th>
                 </tr>
@@ -1341,6 +1342,18 @@ function ConfirmationContent() {
                             <Calendar className="inline h-3 w-3 mr-0.5" />
                             {new Date(order.scheduledDeliveryDate).toLocaleDateString("fr-FR")}
                           </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {order.assignedAgentName ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white">
+                              {order.assignedAgentName[0]?.toUpperCase()}
+                            </div>
+                            <span className="text-xs truncate max-w-[80px]">{order.assignedAgentName}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-light">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>

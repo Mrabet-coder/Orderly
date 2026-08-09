@@ -592,6 +592,7 @@ function FulfillmentContent() {
                   <th className="px-4 py-2.5">Téléphone</th>
                   <th className="px-4 py-2.5">Produits</th>
                   <th className="px-4 py-2.5">Total</th>
+                  <th className="px-4 py-2.5">Agent</th>
                   <th className="px-4 py-2.5">Paiement</th>
                   <th className="px-4 py-2.5">Statut</th>
                 </tr>
@@ -620,6 +621,18 @@ function FulfillmentContent() {
                     </td>
                     <td className="px-4 py-3 font-mono text-sm font-medium">
                       {formatMoney(order.total, order.currency)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {order.assignedAgentName ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white">
+                            {order.assignedAgentName[0]?.toUpperCase()}
+                          </div>
+                          <span className="text-xs truncate max-w-[80px]">{order.assignedAgentName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-light">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {order.orderStatus === "PAYE" ? (

@@ -6,7 +6,7 @@ import {
   EMPTY_FILTERS,
   type AdvancedFilterState,
 } from "@/components/stats/advanced-filters";
-
+import { CustomerBadges, normalizePhone, type CustomerStats } from "@/components/orders/customer-badges";
 import {
   PeriodFilter,
   StatCard,
@@ -562,10 +562,12 @@ function DeliveryModal({
 
 function OrderModal({
   order,
+  customerStats,
   onClose,
   onDone,
 }: {
   order: Order;
+  customerStats?: CustomerStats;
   onClose: () => void;
   onDone: (updatedOrder: Partial<Order>, newStatus?: OrderStatus) => void;
 }) {
@@ -759,9 +761,10 @@ function OrderModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
         <div className="w-full max-w-4xl rounded-xl border border-border bg-surface shadow-2xl max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <div>
+          <div>
               <h2 className="text-sm font-semibold">Commande {order.orderNumber}</h2>
               <p className="text-xs text-muted">{order.storeName}</p>
+              {customerStats && <CustomerBadges stats={customerStats} />}
             </div>
             <div className="flex items-center gap-2">
               <OrderStatusBadge status={order.orderStatus} />
@@ -1028,6 +1031,7 @@ function ConfirmationContent() {
   const [archiveOrder, setArchiveOrder] = useState<Order | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [detectingLoyal, setDetectingLoyal] = useState(false);
+  const [customerStats, setCustomerStats] = useState<Record<string, CustomerStats>>({});
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "refused" | "a_verifier">("all");
   const [period, setPeriod] = useState<Period>(getPeriodRange("all"));
@@ -1062,9 +1066,36 @@ function ConfirmationContent() {
     }
   }, []);
 
+  // Load customer stats for badges
+  const fetchCustomerStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/orders/stats/customers`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+      const map: Record<string, CustomerStats> = {};
+      for (const c of data) {
+        map[c.phone] = {
+          phone: c.phone,
+          totalOrders: c.totalOrders,
+          confirmationRate: c.confirmationRate,
+          deliveryRate: c.deliveryRate,
+          returnRate: c.returnRate,
+          lifetimeValue: c.lifetimeValue,
+          avgBasket: c.avgBasket,
+        };
+      }
+      setCustomerStats(map);
+    } catch {
+      setCustomerStats({});
+    }
+  }, []);
+
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]);
+    fetchCustomerStats();
+  }, [fetchOrders, fetchCustomerStats]);
 
   function handleDone(orderId: string, updatedFields: Partial<Order>, newStatus?: OrderStatus) {
     setOrders((prev) =>
@@ -1311,10 +1342,11 @@ function ConfirmationContent() {
                         {formatDate(order.sourceCreatedAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium truncate max-w-[150px]">{order.customerName ?? "—"}</p>
+                        <p className="font-medium truncate max-w-[160px]">{order.customerName ?? "—"}</p>
                         {order.customerPhone2 && (
                           <p className="text-[11px] text-muted font-mono">{order.customerPhone2}</p>
                         )}
+                        <CustomerBadges stats={customerStats[normalizePhone(order.customerPhone)]} />
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-mono text-xs">{order.customerPhone ?? "—"}</span>
@@ -1421,6 +1453,7 @@ function ConfirmationContent() {
       {activeOrder && (
         <OrderModal
           order={activeOrder}
+          customerStats={customerStats[normalizePhone(activeOrder.customerPhone)]}
           onClose={() => setActiveOrder(null)}
           onDone={(updatedFields, newStatus) => {
             handleDone(activeOrder.id, updatedFields, newStatus);

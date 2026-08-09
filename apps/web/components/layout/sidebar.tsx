@@ -25,6 +25,7 @@ import {
   MessageSquare,
   RotateCcw,
   Archive,
+  TrendingUp,
 } from "lucide-react";
 import { NotificationCenter } from "@/components/layout/notification-center";
 
@@ -35,6 +36,7 @@ const NAV_ITEMS: { label: string; icon: React.ElementType; href: string; badge?:
   { label: "Livraison", icon: Truck, href: "/fulfillment", permission: "fulfillment" },
   { label: "Retours", icon: RotateCcw, href: "/retours", permission: "retours" },
   { label: "Réclamations", icon: AlertCircle, href: "/reclamation", permission: "reclamation" },
+  { label: "Performance", icon: TrendingUp, href: "/agents", permission: "agents" },
   { label: "Archives", icon: Archive, href: "/archives", permission: "archives" },
   { label: "Produits", icon: ShoppingBag, href: "/products", permission: "products" },
   { label: "Alertes stock", icon: Bell, href: "/alerts", permission: "alerts" },

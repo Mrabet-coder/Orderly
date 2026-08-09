@@ -142,6 +142,16 @@ getAgentStats(
     storeIds: storeIds ? storeIds.split(',') : undefined,
   });
 }
+@Get('stats/customers')
+getCustomers(
+  @Query('storeIds') storeIds?: string,
+  @Query('search') search?: string,
+) {
+  return this.orders.getCustomers({
+    storeIds: storeIds ? storeIds.split(',') : undefined,
+    search,
+  });
+}
   @Get(':id/events')
   getEvents(@Param('id') id: string) {
     return this.orders.getOrderEvents(id);

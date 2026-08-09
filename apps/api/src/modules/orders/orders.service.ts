@@ -709,4 +709,15 @@ export class OrdersService {
         avgAttempts: a.total > 0 ? +(a.totalAttempts / a.total).toFixed(1) : 0,
       }))
       .sort((x: any, y: any) => y.total - x.total);
-  }}
+  }
+  @Get('stats/customers')
+  getCustomers(
+    @Query('storeIds') storeIds?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.orders.getCustomers({
+      storeIds: storeIds ? storeIds.split(',') : undefined,
+      search,
+    });
+  }
+}

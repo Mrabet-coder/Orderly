@@ -295,7 +295,8 @@ model User {
 
   storeAccess  UserStoreAccess[]
   notifications Notification[]
-
+  channelMembers ChannelMember[]
+  chatMessages   ChatMessage[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -408,4 +409,52 @@ model Flow {
   updatedAt   DateTime @updatedAt
 
   @@index([trigger, isActive])
+}
+// ----------- INTERNAL CHAT -----------
+
+model Channel {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   @default("CHANNEL") // CHANNEL, DM
+  isPrivate   Boolean  @default(false)
+
+  members     ChannelMember[]
+  messages    ChatMessage[]
+
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type])
+}
+
+model ChannelMember {
+  id         String   @id @default(cuid())
+  channelId  String
+  channel    Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  lastReadAt DateTime @default(now())
+  joinedAt   DateTime @default(now())
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  text      String
+  orderRef  String?  // order number shared in the message
+
+  createdAt DateTime @default(now())
+
+  @@index([channelId, createdAt])
 }

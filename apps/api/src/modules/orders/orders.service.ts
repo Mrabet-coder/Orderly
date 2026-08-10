@@ -710,14 +710,5 @@ export class OrdersService {
       }))
       .sort((x: any, y: any) => y.total - x.total);
   }
-  @Get('stats/customers')
-  getCustomers(
-    @Query('storeIds') storeIds?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.orders.getCustomers({
-      storeIds: storeIds ? storeIds.split(',') : undefined,
-      search,
-    });
-  }
+ 
 }

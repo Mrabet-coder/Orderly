@@ -213,6 +213,26 @@ export class ShopifyWebhook {
   }
 
   private async upsertOrder(storeId: string, payload: any) {
+    try {
+      return await this.doUpsertOrder(storeId, payload);
+    } catch (e: any) {
+      // Race condition: another webhook created the order first — retry as update
+      if (e?.code === 'P2002') {
+        try {
+          return await this.doUpsertOrder(storeId, payload);
+        } catch (retryError: any) {
+          console.warn(
+            `[shopify-webhook] upsert failed twice for order ${payload.id}:`,
+            retryError?.code ?? retryError?.message,
+          );
+          return null;
+        }
+      }
+      throw e;
+    }
+  }
+
+  private async doUpsertOrder(storeId: string, payload: any) {
     const financialStatus = this.mapFinancialStatus(payload.financial_status);
     const fulfillmentStatus = this.mapFulfillmentStatus(payload.fulfillment_status);
     const orderStatus = this.deriveOrderStatus(financialStatus, fulfillmentStatus);
@@ -239,12 +259,8 @@ export class ShopifyWebhook {
       update: {
         financialStatus,
         fulfillmentStatus,
-        orderStatus,
+        // Ne pas écraser le statut si l'équipe l'a déjà traité
         updatedAt: new Date(),
-        lineItems: {
-          deleteMany: {},
-          create: lineItems,
-        },
       },
       create: {
         storeId,

@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Archive,
   TrendingUp,
+  Megaphone,
 } from "lucide-react";
 import { NotificationCenter } from "@/components/layout/notification-center";
 
@@ -37,6 +38,7 @@ const NAV_ITEMS: { label: string; icon: React.ElementType; href: string; badge?:
   { label: "Retours", icon: RotateCcw, href: "/retours", permission: "retours" },
   { label: "Réclamations", icon: AlertCircle, href: "/reclamation", permission: "reclamation" },
   { label: "Clients", icon: Users, href: "/clients", permission: "clients" },
+  { label: "Marketing", icon: Megaphone, href: "/marketing", permission: "marketing" },
   { label: "Performance", icon: TrendingUp, href: "/agents", permission: "agents" },
   { label: "Archives", icon: Archive, href: "/archives", permission: "archives" },
   { label: "Produits", icon: ShoppingBag, href: "/products", permission: "products" },

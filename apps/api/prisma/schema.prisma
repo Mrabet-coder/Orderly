@@ -328,3 +328,84 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
 }
+// ----------- MARKETING -----------
+
+model Segment {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  rules       Json     // { minOrders, minLtv, inactiveDays, maxReturnRate, cities[], products[], tags[] }
+  isSystem    Boolean  @default(false)
+
+  campaigns   Campaign[]
+  flows       Flow[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  channel     String   @default("SMS")
+  message     String
+  segmentId   String?
+  segment     Segment? @relation(fields: [segmentId], references: [id])
+
+  status      String   @default("DRAFT") // DRAFT, SCHEDULED, SENDING, SENT, FAILED
+  scheduledAt DateTime?
+  sentAt      DateTime?
+
+  recipientCount Int   @default(0)
+  sentCount      Int   @default(0)
+  failedCount    Int   @default(0)
+
+  sends       CampaignSend[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
+model CampaignSend {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  phone      String
+  name       String?
+  message    String
+  status     String   @default("PENDING") // PENDING, SENT, FAILED
+  error      String?
+  sentAt     DateTime?
+
+  createdAt  DateTime @default(now())
+
+  @@index([campaignId, status])
+}
+
+model Flow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+
+  trigger     String   // LOW_STOCK, NEW_PRODUCT, INACTIVE_CUSTOMER, AFTER_DELIVERY, ABANDONED
+  triggerConfig Json?  // { days: 30, threshold: 5, productId: "..." }
+
+  segmentId   String?
+  segment     Segment? @relation(fields: [segmentId], references: [id])
+
+  channel     String   @default("SMS")
+  message     String
+  delayHours  Int      @default(0)
+
+  isActive    Boolean  @default(false)
+  lastRunAt   DateTime?
+  totalSent   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([trigger, isActive])
+}

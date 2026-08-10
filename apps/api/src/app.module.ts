@@ -7,7 +7,7 @@ import { UsersModule } from './modules/users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
-
+import { MarketingModule } from './modules/marketing/marketing.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -18,6 +18,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     UsersModule,
     WebhooksModule,
     NotificationsModule,
+    MarketingModule,
   ],
 })
 export class AppModule {}

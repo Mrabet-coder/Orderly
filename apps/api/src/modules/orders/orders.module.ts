@@ -6,5 +6,6 @@ import { BordereauService } from './bordereau.service';
 @Module({
   providers: [OrdersService, BordereauService],
   controllers: [OrdersController],
+  exports: [OrdersService],
 })
 export class OrdersModule {}

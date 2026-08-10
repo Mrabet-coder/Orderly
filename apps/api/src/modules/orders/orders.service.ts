@@ -710,5 +710,152 @@ export class OrdersService {
       }))
       .sort((x: any, y: any) => y.total - x.total);
   }
- 
+  async getCustomers(query: { storeIds?: string[]; search?: string }) {
+    const where: any = { customerPhone: { not: null } };
+    if (query.storeIds?.length) where.storeId = { in: query.storeIds };
+
+    const orders = await this.prisma.order.findMany({
+      where,
+      include: {
+        lineItems: { select: { title: true, quantity: true, price: true, sku: true } },
+        store: { select: { id: true, name: true } },
+      },
+      orderBy: { sourceCreatedAt: 'desc' },
+    });
+
+    const byPhone: Record<string, any> = {};
+
+    for (const o of orders) {
+      const phone = (o.customerPhone ?? '').replace(/\s|\+216/g, '');
+      if (!phone || phone.length < 6) continue;
+
+      if (!byPhone[phone]) {
+        byPhone[phone] = {
+          phone,
+          displayPhone: o.customerPhone,
+          phone2: o.customerPhone2 ?? null,
+          name: o.customerName ?? 'Client inconnu',
+          email: o.customerEmail ?? null,
+          city: (o.shippingAddress as any)?.city ?? null,
+          address: (o.shippingAddress as any)?.address1 ?? null,
+          stores: new Set<string>(),
+          storeNames: new Set<string>(),
+          sources: new Set<string>(),
+          tags: new Set<string>(),
+          orders: [],
+          products: {} as Record<string, { title: string; qty: number; revenue: number }>,
+        };
+      }
+
+      const c = byPhone[phone];
+      c.stores.add(o.store.id);
+      c.storeNames.add(o.store.name);
+      (o.tags ?? []).forEach((t: string) => c.tags.add(t));
+
+      const tagLower = (o.tags ?? []).map((t: string) => t.toLowerCase());
+      if (o.externalOrderId?.startsWith('manual_')) c.sources.add('Manuel');
+      else if (tagLower.some((t) => t.includes('whatsapp'))) c.sources.add('WhatsApp');
+      else if (tagLower.some((t) => t.includes('messenger'))) c.sources.add('Messenger');
+      else if (tagLower.some((t) => t.includes('instagram'))) c.sources.add('Instagram');
+      else c.sources.add(o.store.name);
+
+      const attempts = (o.callAttempts as any[]) ?? [];
+      const isConfirmed =
+        attempts.some((a) => a.result === 'ANSWERED_CONFIRMED') ||
+        ['A_PREPARER', 'CONFIRME', 'EN_PREPARATION', 'EMBALLE', 'AU_DEPOT_LIVREUR',
+         'EN_COURS_DE_LIVRAISON', 'LIVRE', 'PAYE'].includes(o.orderStatus);
+      const isRefused =
+        attempts.some((a) => a.result === 'ANSWERED_REFUSED') || o.orderStatus === 'ANNULE';
+      const isDelivered = o.orderStatus === 'LIVRE' || o.orderStatus === 'PAYE';
+      const isReturned = ['RETOUR', 'RETOUR_DEPOT', 'RETOUR_RECU'].includes(o.orderStatus);
+      const isFinished = isDelivered || isReturned;
+
+      c.orders.push({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        date: o.sourceCreatedAt,
+        status: o.orderStatus,
+        total: Number(o.total),
+        storeName: o.store.name,
+        itemCount: o.lineItems.reduce((s, li) => s + li.quantity, 0),
+        isConfirmed,
+        isRefused,
+        isDelivered,
+        isReturned,
+        isFinished,
+        attempts: attempts.length,
+        agent: o.assignedAgentName ?? null,
+      });
+
+      for (const li of o.lineItems) {
+        const key = li.title;
+        if (!c.products[key]) c.products[key] = { title: li.title, qty: 0, revenue: 0 };
+        c.products[key].qty += li.quantity;
+        c.products[key].revenue += Number(li.price) * li.quantity;
+      }
+    }
+
+    return Object.values(byPhone)
+      .map((c: any) => {
+        const total = c.orders.length;
+        const confirmed = c.orders.filter((o: any) => o.isConfirmed).length;
+        const refused = c.orders.filter((o: any) => o.isRefused).length;
+        const delivered = c.orders.filter((o: any) => o.isDelivered).length;
+        const returned = c.orders.filter((o: any) => o.isReturned).length;
+        const finished = c.orders.filter((o: any) => o.isFinished).length;
+
+        const paidOrders = c.orders.filter((o: any) => o.isDelivered);
+        const lifetimeValue = paidOrders.reduce((s: number, o: any) => s + o.total, 0);
+        const totalOrdered = c.orders.reduce((s: number, o: any) => s + o.total, 0);
+
+        const dates = c.orders.map((o: any) => new Date(o.date).getTime());
+        const firstOrder = new Date(Math.min(...dates));
+        const lastOrder = new Date(Math.max(...dates));
+        const daysSinceLast = Math.floor((Date.now() - lastOrder.getTime()) / 86400000);
+
+        const topProducts = Object.values(c.products)
+          .sort((a: any, b: any) => b.qty - a.qty)
+          .slice(0, 5);
+
+        return {
+          phone: c.phone,
+          displayPhone: c.displayPhone,
+          phone2: c.phone2,
+          name: c.name,
+          email: c.email,
+          city: c.city,
+          address: c.address,
+          storeIds: Array.from(c.stores),
+          storeNames: Array.from(c.storeNames),
+          sources: Array.from(c.sources),
+          tags: Array.from(c.tags),
+          totalOrders: total,
+          confirmed,
+          refused,
+          delivered,
+          returned,
+          confirmationRate: total > 0 ? Math.round((confirmed / total) * 100) : 0,
+          deliveryRate: finished > 0 ? Math.round((delivered / finished) * 100) : 0,
+          returnRate: finished > 0 ? Math.round((returned / finished) * 100) : 0,
+          lifetimeValue,
+          totalOrdered,
+          avgBasket: delivered > 0 ? Math.round(lifetimeValue / delivered) : 0,
+          firstOrder,
+          lastOrder,
+          daysSinceLast,
+          topProducts,
+          orders: c.orders.slice(0, 50),
+        };
+      })
+      .filter((c: any) => {
+        if (!query.search) return true;
+        const q = query.search.toLowerCase();
+        return (
+          c.name.toLowerCase().includes(q) ||
+          (c.displayPhone ?? '').includes(q) ||
+          (c.city ?? '').toLowerCase().includes(q)
+        );
+      })
+      .sort((a: any, b: any) => b.lifetimeValue - a.lifetimeValue);
+  }
 }

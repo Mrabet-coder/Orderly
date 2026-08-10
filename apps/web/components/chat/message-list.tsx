@@ -82,15 +82,15 @@ export function MessageList({
               <p className="text-sm leading-relaxed">
                 <MentionText text={m.text} />
               </p>
-              {m.orderRef && (
+              {m.orderRef ? (
                 
-                  href={"/confirmation?search=" + encodeURIComponent(m.orderRef)}
-                  className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-sunken px-2 py-1 text-[11px] font-medium hover:border-primary hover:text-primary"
-                >
-                  <Package className="h-3 w-3" />
-                  {m.orderRef}
-                </a>
-              )}
+                href={"/confirmation?search=" + encodeURIComponent(m.orderRef)}
+                className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-sunken px-2 py-1 text-[11px] font-medium hover:border-primary hover:text-primary"
+              >
+                <Package className="h-3 w-3" />
+                {m.orderRef}
+              </a>
+            ) : null}
             </div>
           </div>
         );
